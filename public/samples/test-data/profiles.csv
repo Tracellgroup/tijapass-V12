@@ -1,0 +1,11 @@
+﻿business_id,business,owner,gender,dob,age_on_2026_10_27,sector,region,phone_test,test_pin,previously_unbanked,previous_formal_loan,staff,quality_rating,quality_band,records_review
+TPDEMO-B01,Asha Mama Lishe,Asha Mwinyi,Female,1999-04-18,27,Mama lishe / Prepared meals,Dar es Salaam,0700001001,246810,True,False,3,94,Excellent,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B02,Baraka Shoe Shine,Baraka Juma,Male,1980-08-22,46,Shoe shining,Dar es Salaam,0700001002,246810,False,False,1,84,Good,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B03,Neema Vegetable Stall,Neema Mushi,Female,1986-03-11,40,Market vegetables,Dar es Salaam,0700001003,246810,True,True,2,73,Good,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B04,Kelvin Phone Repairs,Kelvin Salum,Male,2001-12-06,24,Phone repairs,Dodoma,0700001004,246810,False,False,2,68,Okay,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B05,Rehema Tailoring,Rehema Abdallah,Female,1997-06-03,29,Tailoring,Morogoro,0700001005,246810,True,False,2,90,Excellent,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B06,Mhando Furniture Workshop,George Mhando,Male,1982-01-19,44,Furniture and carpentry,Arusha,0700001006,246810,False,True,4,55,Okay,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B07,Zawadi Grocery Kiosk,Zawadi Hamisi,Female,1978-11-25,47,Grocery retail,Mwanza,0700001007,246810,True,True,3,78,Good,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B08,Japheth Spare Parts,Japheth Ally,Male,1994-10-14,32,Motorcycle spare parts,Mbeya,0700001008,246810,False,True,2,42,Poor,"COMPLETED (SIMULATED CHECK)"
+TPDEMO-B09,Halima Beauty Salon,Halima Selemani,Female,1990-05-16,36,Beauty and hairdressing,Tanga,0700001009,246810,False,False,2,,Not reviewed,NOT REVIEWED
+TPDEMO-B10,Faraji Urban Greens,Faraji Omari,Male,2002-02-27,24,Urban farming,Dar es Salaam,0700001010,246810,True,False,1,,Not reviewed,NOT REVIEWED

@@ -1,0 +1,9 @@
+﻿business_id,score_100,band,cash,completeness,correctness,timeliness,stock,review_date,status
+TPDEMO-B01,94,Excellent,24,24,19,14,13,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B02,84,Good,21,21,17,13,12,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B03,73,Good,18,19,15,11,10,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B04,68,Okay,18,17,14,9,10,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B05,90,Excellent,23,23,18,13,13,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B06,55,Okay,14,13,11,8,9,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B07,78,Good,20,19,16,12,11,2026-10-27,"Simulated records check (test data)"
+TPDEMO-B08,42,Poor,11,11,8,6,6,2026-10-27,"Simulated records check (test data)"

@@ -1,0 +1,30 @@
+{
+  "name": "tijapass-v12",
+  "private": true,
+  "version": "10.0.0",
+  "type": "module",
+  "description": "TijaPass V12 web MVP: MSME records, daily close, Records Rating, credit passport and BOT reports (dummy data only)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js",
+    "extract-text": "node scripts/extract-text.mjs",
+    "accounting-map": "node scripts/export-accounting-map.mjs",
+    "ai-prompts": "node scripts/export-ai-prompts.mjs",
+    "docs": "npm run extract-text && npm run accounting-map && npm run ai-prompts"
+  },
+  "dependencies": {
+    "lucide-react": "0.441.0",
+    "pdfjs-dist": "4.10.38",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.3",
+    "vite": "5.4.10"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

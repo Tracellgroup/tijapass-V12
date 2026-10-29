@@ -1,0 +1,101 @@
+﻿business_id,date,direction,amount_tzs,payment_channel,description,category,sample_cost_of_sales_tzs,reference,review_evidence
+TPDEMO-B01,2026-10-01,Receipt,120000,cash,Sold cooked meals to walk-in customers,sales,42000,TEST-B01-01,Simulated review
+TPDEMO-B01,2026-10-01,Payment,35000,cash,Bought stock food ingredients,inventory,0,TEST-B01-02,Simulated review
+TPDEMO-B01,2026-10-06,Receipt,122000,cash,Sold lunch meals for cash,sales,42700,TEST-B01-03,Simulated review
+TPDEMO-B01,2026-10-06,Payment,35500,cash,Paid electricity and water,utilities,0,TEST-B01-04,Simulated review
+TPDEMO-B01,2026-10-12,Receipt,118500,cash,Sold cooked meals to walk-in customers,sales,41475,TEST-B01-05,Simulated review
+TPDEMO-B01,2026-10-12,Payment,34500,cash,Paid transport for food supplies,transport,0,TEST-B01-06,Simulated review
+TPDEMO-B01,2026-10-20,Receipt,124500,cash,Sold lunch meals for cash,sales,43575,TEST-B01-07,Simulated review
+TPDEMO-B01,2026-10-20,Payment,35900,cash,Bought stock rice and vegetables,inventory,0,TEST-B01-08,Simulated review
+TPDEMO-B01,2026-10-26,Receipt,119500,cash,Sold cooked meals to walk-in customers,sales,41825,TEST-B01-09,Simulated review
+TPDEMO-B01,2026-10-26,Payment,34700,cash,Paid rent for food stall,rent,0,TEST-B01-10,Customer-declared only
+TPDEMO-B02,2026-10-02,Receipt,38000,cash,Shoe shining services for walk-in customers,services,0,TEST-B02-01,Simulated review
+TPDEMO-B02,2026-10-02,Payment,8000,cash,Paid maintenance for shoe tools,maintenance,0,TEST-B02-02,Simulated review
+TPDEMO-B02,2026-10-07,Receipt,42000,cash,Sold shoe shine service,services,0,TEST-B02-03,Simulated review
+TPDEMO-B02,2026-10-07,Payment,9000,cash,Paid transport for shoe polish supplies,transport,0,TEST-B02-04,Simulated review
+TPDEMO-B02,2026-10-14,Receipt,35000,cash,Shoe shining services for walk-in customers,services,0,TEST-B02-05,Simulated review
+TPDEMO-B02,2026-10-14,Payment,7000,cash,Paid other operating costs for polish,otherexpense,0,TEST-B02-06,Simulated review
+TPDEMO-B02,2026-10-21,Receipt,47000,cash,Sold shoe shine service,services,0,TEST-B02-07,Simulated review
+TPDEMO-B02,2026-10-21,Payment,9800,cash,Paid rent for shoe shine spot,rent,0,TEST-B02-08,Simulated review
+TPDEMO-B02,2026-10-27,Receipt,37000,cash,Shoe shining services for walk-in customers,services,0,TEST-B02-09,Customer-declared only
+TPDEMO-B02,2026-10-27,Payment,7400,cash,Paid airtime and internet,telecom,0,TEST-B02-10,Customer-declared only
+TPDEMO-B03,2026-10-01,Receipt,165000,mobile,Sold vegetables at market stall,sales,99000,TEST-B03-01,Simulated review
+TPDEMO-B03,2026-10-01,Payment,90000,mobile,Bought stock vegetables for resale,inventory,0,TEST-B03-02,Simulated review
+TPDEMO-B03,2026-10-08,Receipt,171000,mobile,Sold fresh produce to walk-in customers,sales,102600,TEST-B03-03,Simulated review
+TPDEMO-B03,2026-10-08,Payment,90500,mobile,Paid transport for produce,transport,0,TEST-B03-04,Simulated review
+TPDEMO-B03,2026-10-13,Receipt,160500,mobile,Sold vegetables at market stall,sales,96300,TEST-B03-05,Simulated review
+TPDEMO-B03,2026-10-13,Payment,89500,mobile,Paid water for produce stall,utilities,0,TEST-B03-06,Simulated review
+TPDEMO-B03,2026-10-22,Receipt,178500,mobile,Sold fresh produce to walk-in customers,sales,107100,TEST-B03-07,Simulated review
+TPDEMO-B03,2026-10-22,Payment,90900,mobile,Bought stock tomatoes for resale,inventory,0,TEST-B03-08,Customer-declared only
+TPDEMO-B03,2026-10-26,Receipt,163500,mobile,Sold vegetables at market stall,sales,98100,TEST-B03-09,Customer-declared only
+TPDEMO-B03,2026-10-26,Payment,89700,mobile,Paid rent for market stall,rent,0,TEST-B03-10,Customer-declared only
+TPDEMO-B04,2026-10-03,Receipt,195000,bank,Phone repair services,services,0,TEST-B04-01,Simulated review
+TPDEMO-B04,2026-10-03,Payment,48000,bank,Bought stock spare parts,inventory,0,TEST-B04-02,Simulated review
+TPDEMO-B04,2026-10-09,Receipt,197000,bank,Service rendered phone screen repair,services,0,TEST-B04-03,Simulated review
+TPDEMO-B04,2026-10-09,Payment,49000,bank,Paid electricity for phone repairs,utilities,0,TEST-B04-04,Simulated review
+TPDEMO-B04,2026-10-16,Receipt,193500,bank,Phone repair services,services,0,TEST-B04-05,Simulated review
+TPDEMO-B04,2026-10-16,Payment,47000,bank,Paid transport for repairs,transport,0,TEST-B04-06,Simulated review
+TPDEMO-B04,2026-10-23,Receipt,199500,bank,Service rendered phone screen repair,services,0,TEST-B04-07,Simulated review
+TPDEMO-B04,2026-10-23,Payment,49800,bank,Paid maintenance of tools,maintenance,0,TEST-B04-08,Customer-declared only
+TPDEMO-B04,2026-10-27,Receipt,194500,bank,Phone repair services,services,0,TEST-B04-09,Customer-declared only
+TPDEMO-B04,2026-10-27,Payment,47400,bank,Paid rent for repairs shop,rent,0,TEST-B04-10,Customer-declared only
+TPDEMO-B05,2026-10-01,Receipt,135000,mobile,Tailoring services for school uniforms,services,0,TEST-B05-01,Simulated review
+TPDEMO-B05,2026-10-01,Payment,26000,mobile,Bought stock tailoring materials,inventory,0,TEST-B05-02,Simulated review
+TPDEMO-B05,2026-10-05,Receipt,139000,mobile,Tailoring services for customers,services,0,TEST-B05-03,Simulated review
+TPDEMO-B05,2026-10-05,Payment,26500,mobile,Paid electricity for sewing machines,utilities,0,TEST-B05-04,Simulated review
+TPDEMO-B05,2026-10-15,Receipt,132000,mobile,Tailoring services for school uniforms,services,0,TEST-B05-05,Simulated review
+TPDEMO-B05,2026-10-15,Payment,25500,mobile,Paid transport for cloth,transport,0,TEST-B05-06,Simulated review
+TPDEMO-B05,2026-10-20,Receipt,144000,mobile,Tailoring services for customers,services,0,TEST-B05-07,Simulated review
+TPDEMO-B05,2026-10-20,Payment,26900,mobile,Paid sewing machine maintenance,maintenance,0,TEST-B05-08,Simulated review
+TPDEMO-B05,2026-10-26,Receipt,134000,mobile,Tailoring services for school uniforms,services,0,TEST-B05-09,Simulated review
+TPDEMO-B05,2026-10-26,Payment,25700,mobile,Paid rent for tailoring workspace,rent,0,TEST-B05-10,Customer-declared only
+TPDEMO-B06,2026-10-02,Receipt,320000,bank,Sold furniture workshop products,sales,160000,TEST-B06-01,Simulated review
+TPDEMO-B06,2026-10-02,Payment,140000,bank,Bought stock timber and fittings,inventory,0,TEST-B06-02,Simulated review
+TPDEMO-B06,2026-10-08,Receipt,326000,bank,Sold wooden stools,sales,163000,TEST-B06-03,Simulated review
+TPDEMO-B06,2026-10-08,Payment,141000,bank,Paid staff wages,salaries,0,TEST-B06-04,Simulated review
+TPDEMO-B06,2026-10-15,Receipt,315500,bank,Sold furniture workshop products,sales,157750,TEST-B06-05,Simulated review
+TPDEMO-B06,2026-10-15,Payment,139000,bank,Paid electricity for machinery,utilities,0,TEST-B06-06,Simulated review
+TPDEMO-B06,2026-10-22,Receipt,333500,bank,Sold wooden stools,sales,166750,TEST-B06-07,Customer-declared only
+TPDEMO-B06,2026-10-22,Payment,141800,bank,Paid transport timber delivery,transport,0,TEST-B06-08,Customer-declared only
+TPDEMO-B06,2026-10-27,Receipt,318500,bank,Sold furniture workshop products,sales,159250,TEST-B06-09,Customer-declared only
+TPDEMO-B06,2026-10-27,Payment,139400,bank,Paid equipment maintenance,maintenance,0,TEST-B06-10,Customer-declared only
+TPDEMO-B07,2026-10-03,Receipt,205000,mobile,Sold groceries in kiosk,sales,133250,TEST-B07-01,Simulated review
+TPDEMO-B07,2026-10-03,Payment,120000,mobile,Bought stock groceries,inventory,0,TEST-B07-02,Simulated review
+TPDEMO-B07,2026-10-07,Receipt,207000,mobile,Sold shop goods to walk-in buyers,sales,134550,TEST-B07-03,Simulated review
+TPDEMO-B07,2026-10-07,Payment,120500,mobile,Paid transport for wholesale supplies,transport,0,TEST-B07-04,Simulated review
+TPDEMO-B07,2026-10-14,Receipt,203500,mobile,Sold groceries in kiosk,sales,132275,TEST-B07-05,Simulated review
+TPDEMO-B07,2026-10-14,Payment,119500,mobile,Paid electricity and water,utilities,0,TEST-B07-06,Simulated review
+TPDEMO-B07,2026-10-21,Receipt,209500,mobile,Sold shop goods to walk-in buyers,sales,136175,TEST-B07-07,Simulated review
+TPDEMO-B07,2026-10-21,Payment,120900,mobile,Bought stock cleaning supplies,inventory,0,TEST-B07-08,Simulated review
+TPDEMO-B07,2026-10-26,Receipt,204500,mobile,Sold groceries in kiosk,sales,132925,TEST-B07-09,Customer-declared only
+TPDEMO-B07,2026-10-26,Payment,119700,mobile,Paid rent for kiosk,rent,0,TEST-B07-10,Customer-declared only
+TPDEMO-B08,2026-10-01,Receipt,250000,bank,Sold motorcycle spare parts,sales,135000,TEST-B08-01,Simulated review
+TPDEMO-B08,2026-10-01,Payment,150000,bank,Bought stock motorbike spare parts,inventory,0,TEST-B08-02,Simulated review
+TPDEMO-B08,2026-10-09,Receipt,254000,bank,Sold motorcycle spare parts to customer,sales,137160,TEST-B08-03,Simulated review
+TPDEMO-B08,2026-10-09,Payment,151000,bank,Paid transport from wholesaler,transport,0,TEST-B08-04,Simulated review
+TPDEMO-B08,2026-10-16,Receipt,247000,bank,Sold motorcycle spare parts,sales,133380,TEST-B08-05,Customer-declared only
+TPDEMO-B08,2026-10-16,Payment,149000,bank,Paid rent for spare parts shop,rent,0,TEST-B08-06,Customer-declared only
+TPDEMO-B08,2026-10-23,Receipt,259000,bank,Sold motorcycle spare parts to customer,sales,139860,TEST-B08-07,Customer-declared only
+TPDEMO-B08,2026-10-23,Payment,151800,bank,Paid internet and airtime,telecom,0,TEST-B08-08,Customer-declared only
+TPDEMO-B08,2026-10-27,Receipt,249000,bank,Sold motorcycle spare parts,sales,134460,TEST-B08-09,Customer-declared only
+TPDEMO-B08,2026-10-27,Payment,149400,bank,Paid electricity for spare parts shop,utilities,0,TEST-B08-10,Customer-declared only
+TPDEMO-B09,2026-10-02,Receipt,150000,mobile,Hairdressing services,services,0,TEST-B09-01,Customer-declared only
+TPDEMO-B09,2026-10-02,Payment,50000,mobile,Bought stock salon hair products,inventory,0,TEST-B09-02,Customer-declared only
+TPDEMO-B09,2026-10-06,Receipt,156000,mobile,Beauty salon services,services,0,TEST-B09-03,Customer-declared only
+TPDEMO-B09,2026-10-06,Payment,50500,mobile,Paid electricity for beauty salon,utilities,0,TEST-B09-04,Customer-declared only
+TPDEMO-B09,2026-10-13,Receipt,145500,mobile,Hairdressing services,services,0,TEST-B09-05,Customer-declared only
+TPDEMO-B09,2026-10-13,Payment,49500,mobile,Paid staff wages,salaries,0,TEST-B09-06,Customer-declared only
+TPDEMO-B09,2026-10-20,Receipt,163500,mobile,Beauty salon services,services,0,TEST-B09-07,Customer-declared only
+TPDEMO-B09,2026-10-20,Payment,50900,mobile,Paid rent for beauty salon,rent,0,TEST-B09-08,Customer-declared only
+TPDEMO-B09,2026-10-26,Receipt,148500,mobile,Hairdressing services,services,0,TEST-B09-09,Customer-declared only
+TPDEMO-B09,2026-10-26,Payment,49700,mobile,Paid transport for supplies,transport,0,TEST-B09-10,Customer-declared only
+TPDEMO-B10,2026-10-01,Receipt,98000,cash,Sold fresh vegetables from urban farm,sales,42140,TEST-B10-01,Customer-declared only
+TPDEMO-B10,2026-10-01,Payment,45000,cash,Bought stock seeds and fertiliser,inventory,0,TEST-B10-02,Customer-declared only
+TPDEMO-B10,2026-10-08,Receipt,100000,cash,Sold leafy greens for cash,sales,43000,TEST-B10-03,Customer-declared only
+TPDEMO-B10,2026-10-08,Payment,46000,cash,Paid transport for farm produce,transport,0,TEST-B10-04,Customer-declared only
+TPDEMO-B10,2026-10-15,Receipt,96500,cash,Sold fresh vegetables from urban farm,sales,41495,TEST-B10-05,Customer-declared only
+TPDEMO-B10,2026-10-15,Payment,44000,cash,Paid water for crops,utilities,0,TEST-B10-06,Customer-declared only
+TPDEMO-B10,2026-10-22,Receipt,102500,cash,Sold leafy greens for cash,sales,44075,TEST-B10-07,Customer-declared only
+TPDEMO-B10,2026-10-22,Payment,46800,cash,Paid wages for crop helpers,salaries,0,TEST-B10-08,Customer-declared only
+TPDEMO-B10,2026-10-27,Receipt,97500,cash,Sold fresh vegetables from urban farm,sales,41925,TEST-B10-09,Customer-declared only
+TPDEMO-B10,2026-10-27,Payment,44400,cash,Paid other operating costs for tools,otherexpense,0,TEST-B10-10,Customer-declared only
