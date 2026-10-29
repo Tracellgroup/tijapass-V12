@@ -28,6 +28,7 @@ Agreed with TFL after comparing another TijaPass version and testing many practi
 | Tanzania time everywhere | UX-07 | `util.js` `tzDateOf`, `tzTimeOf`, `today` |
 | Help guide: phone users see phone-sized pictures, desk users desktop ones; tap to enlarge | HLP-01 | `shared.jsx` Guide; `public/guide/*.json` regenerated |
 | Messages (success and error notices) are now always shown; previously they were never displayed | UX | `store.jsx` toast |
+| From TFL's first test of V12: the Send code button is orange with a short how-to; PIN problems show under the PIN box at once; the last registration step lists everything still missing; Forgot my PIN says when a number is not registered | ROLE-01, ONB-05 | `Onboard.jsx` `PhoneCode`, `SignIn.jsx` `ForgotPin` |
 | Test data: PIN 2468, valid NIDAs, identity verified; second Super user test account | Tab 2, Test data | `testData.js`, `seed.js` |
 
 ## Revisions of 27 October 2026 (developer review)

@@ -33,9 +33,12 @@ export function PhoneCode({ phone, done, onDone, label }) {
   return (
     <div className="phone-code">
       {!code ? (
-        <button type="button" className="btn" disabled={!validPhone(phone)} onClick={() => { setCode(String(1000 + Math.floor(Math.random() * 9000))); setWrong(false); }}>
-          {L("Send code to", "Tuma msimbo kwa")} {phone || "…"}
-        </button>
+        <>
+          <button type="button" className="btn primary" disabled={!validPhone(phone)} onClick={() => { setCode(String(1000 + Math.floor(Math.random() * 9000))); setWrong(false); }}>
+            {L("Send code to", "Tuma msimbo kwa")} {phone || "…"}
+          </button>
+          <p className="tiny muted">{validPhone(phone) ? L("Tap to get a 4-digit code. Test version: the code shows here instead of an SMS, so a made-up number works.", "Bofya kupata msimbo wa tarakimu 4. Toleo la majaribio: msimbo unaonekana hapa badala ya SMS, kwa hiyo namba ya kubuni inafaa.") : L("Enter a valid phone number first, e.g. 0712 345 678.", "Andika kwanza namba sahihi ya simu, k.m. 0712 345 678.")}</p>
+        </>
       ) : (
         <>
           <p className="tiny test-code">{L("Test version: the SMS code is", "Toleo la majaribio: msimbo wa SMS ni")} <b data-testid="sms-code">{code}</b></p>
@@ -123,7 +126,11 @@ export function BusinessWizard({ onDone }) {
     [f.management.managedBy === "owner" || (f.management.managers.length && f.management.managers.every((m) => m.name.trim().length > 2 && validPhone(m.phone))), L("Add each manager's name and phone.", "Ongeza jina na simu ya kila meneja.")],
     [f.wallets.every((w) => w.provider) && f.banks.every((b) => b.name) && (!f.phone2 || validPhone(f.phone2)), L("Each wallet needs a provider and each bank a name.", "Kila pochi inahitaji mtoa huduma na kila benki jina.")],
     [f.baseline.bank && f.baseline.mobile && f.baseline.borrowed && f.baseline.sources.length && f.baseline.needFinance && (f.baseline.needFinance === "no" || f.baseline.needAmount), L("Answer every question.", "Jibu kila swali.")],
-    [f.phoneOk && /^\d{4}$/.test(f.pin) && !pinIssue && f.pin === f.pin2 && f.consent, !f.phoneOk ? L("Confirm the main phone with the code sent to it.", "Thibitisha simu kuu kwa msimbo uliotumwa.") : pinIssue ? tl(pinIssue) : L("Choose a 4-digit PIN, repeat it, and give consent.", "Chagua PIN ya tarakimu 4, irudie, na toa ridhaa.")]
+    [f.phoneOk && /^\d{4}$/.test(f.pin) && !pinIssue && f.pin === f.pin2 && f.consent, [
+      !f.phoneOk && L("Confirm the main phone: tap \"Send code\", then type the code shown.", "Thibitisha simu kuu: bofya \"Tuma msimbo\", kisha andika msimbo unaoonekana."),
+      !/^\d{4}$/.test(f.pin) ? L("Choose a 4-digit PIN.", "Chagua PIN ya tarakimu 4.") : pinIssue ? tl(pinIssue) : f.pin !== f.pin2 && L("Repeat the same PIN.", "Rudia PIN ile ile."),
+      !f.consent && L("Tick \"I agree\".", "Weka alama \"Nakubali\".")
+    ].filter(Boolean).join(" ")]
   ];
   const ok = Boolean(errors[step][0]);
 
@@ -269,8 +276,8 @@ export function BusinessWizard({ onDone }) {
             </Field>
           ))}
           <div className="form two">
-            <Field label={L("Choose a 4-digit PIN *", "Chagua PIN ya tarakimu 4 *")} hint={L("Not 1234, 0000, your birth year or the end of your phone number", "Si 1234, 0000, mwaka wa kuzaliwa au mwisho wa namba ya simu")}><input className="input" type="password" inputMode="numeric" maxLength={4} value={f.pin} onChange={(e) => set("pin", e.target.value.replace(/\D/g, ""))} /></Field>
-            <Field label={L("Repeat the PIN *", "Rudia PIN *")}><input className="input" type="password" inputMode="numeric" maxLength={4} value={f.pin2} onChange={(e) => set("pin2", e.target.value.replace(/\D/g, ""))} /></Field>
+            <Field label={L("Choose a 4-digit PIN *", "Chagua PIN ya tarakimu 4 *")} hint={pinIssue && f.pin.length === 4 ? <span className="amber">{tl(pinIssue)}</span> : L("Not the same digit 4 times, a straight run up or down (1234, 7654), your birth year or the end of your phone number", "Si tarakimu moja mara 4, mfululizo wa kupanda au kushuka (1234, 7654), mwaka wa kuzaliwa au mwisho wa namba ya simu")}><input className="input" type="password" inputMode="numeric" maxLength={4} value={f.pin} onChange={(e) => set("pin", e.target.value.replace(/\D/g, ""))} /></Field>
+            <Field label={L("Repeat the PIN *", "Rudia PIN *")} hint={f.pin2.length === 4 && f.pin2 !== f.pin ? <span className="amber">{L("The two PINs are not the same.", "PIN mbili hazifanani.")}</span> : null}><input className="input" type="password" inputMode="numeric" maxLength={4} value={f.pin2} onChange={(e) => set("pin2", e.target.value.replace(/\D/g, ""))} /></Field>
           </div>
           <p className="tiny muted">{L("Only you choose your PIN. A TijaPass officer never needs it. Test version: use a made-up PIN, never a real one.", "Wewe pekee unachagua PIN yako. Afisa wa TijaPass hahitaji kamwe. Toleo la majaribio: tumia PIN ya kubuni, si halisi.")}</p>
           <div className="notice">

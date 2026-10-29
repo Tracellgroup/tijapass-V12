@@ -9,11 +9,12 @@ import { ROLE_NAMES } from "../lib/access.js";
 import { L, tl } from "../lib/i18n.js";
 import { useAction, useStore } from "../lib/store.jsx";
 import { Card, Field, Select, Tabs, Text } from "../ui/components.jsx";
-import { BusinessWizard, PhoneCode, normPhone } from "./Onboard.jsx";
+import { BusinessWizard, PhoneCode, normPhone, validPhone } from "./Onboard.jsx";
 
 // Forgotten PIN: a code to the registered phone, then a new 4-digit PIN (not possible while blocked).
 function ForgotPin({ onDone }) {
   const act = useAction();
+  const { state } = useStore();
   const [phone, setPhone] = useState("");
   const [ok, setOk] = useState(false);
   const [pin, setPin] = useState("");
@@ -22,7 +23,11 @@ function ForgotPin({ onDone }) {
     <Card title={L("Forgot my PIN", "Nimesahau PIN yangu")}>
       <div className="form">
         <Field label={L("Registered phone number", "Namba ya simu iliyosajiliwa")}><Text value={phone} onChange={(v) => { setPhone(v); setOk(false); }} inputMode="tel" placeholder="0712 345 678" /></Field>
-        <PhoneCode phone={normPhone(phone)} done={ok} onDone={() => setOk(true)} />
+        {validPhone(phone) && !state.users.some((u) => u.role === "business" && u.login === normPhone(phone)) ? (
+          <p className="small amber">{L("This number is not registered. Go back and choose \"Register my business\" first.", "Namba hii haijasajiliwa. Rudi uchague \"Sajili biashara yangu\" kwanza.")}</p>
+        ) : (
+          <PhoneCode phone={normPhone(phone)} done={ok} onDone={() => setOk(true)} />
+        )}
         {ok && (
           <div className="form two">
             <Field label={L("New 4-digit PIN", "PIN mpya ya tarakimu 4")}><input className="input" type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} /></Field>
