@@ -22,17 +22,19 @@ const FI = { id: "U-FI1", name: "FI", role: "fi", orgId: "FI-1" };
 const B = { id: "UB1", name: "Neema", role: "business", businessId: "B1" };
 
 const owner = (o = {}) => ({ id: "O1", name: "Neema Juma Mushi", phone: "+255712345678", nida: "19940512111110000121", dob: "1994-05-12", gender: "female", sharePct: 100, role: "owner", main: true, ...o });
+const BASE_PROFILE = { businessName: "Neema Shop", legalForm: "sole", businessType: "shop", sector: "produce", region: "Dar es Salaam", address: "Kariakoo market, stall 12", owners: [owner()] };
 const reg = (o = {}) => ({
   id: "B1", userId: "UB1", pin: "4826", phoneVerified: true,
-  profile: { businessName: "Neema Shop", legalForm: "sole", sector: "produce", region: "Dar es Salaam", owners: [owner()] },
   channels: [{ id: "C1", type: "cash", name: "Cash" }, { id: "C2", type: "mobile", name: "M-Pesa" }],
-  baseline: { bank: "none", mobile: "personal", borrowed: "never", sources: ["vicoba"], needFinance: "no" }, ...o
+  baseline: { bank: "none", mobile: "personal", borrowed: "never", sources: ["vicoba"], needFinance: "no" }, ...o,
+  profile: { ...BASE_PROFILE, ...(o.profile || {}) }
 });
+const OPEN = (channels, more = {}) => ({ channels, inventory: 0, receivables: 0, equipment: 0, groupSavings: 0, payables: 0, loansShort: 0, loansLong: 0, groupLoans: 0, ...more });
 function world() {
   const d = initialState(today(null));
   A.createBusiness(d, null, reg());
   A.assignOfficer(d, ADMIN, "B1", "U-OFF1", "Same region");
-  A.saveOpening(d, B, "B1", { channels: { C1: 50000, C2: 20000 } }, true);
+  A.saveOpening(d, B, "B1", OPEN({ C1: 50000, C2: 20000 }), true);
   A.decideOpening(d, ADMIN, "B1", true, "Checked against stock and SMS");
   return d;
 }
@@ -64,11 +66,11 @@ test("age rules: owners 12+, no future or impossible birth dates; under 18 needs
   assert.equal(dobProblem("1994-05-12", t), null);
   assert.ok(min > "1900-01-01");
   const d = initialState(t);
-  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "X", owners: [owner({ dob: "2021-05-01" })] } })), /at least 12/);
+  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "Test Shop", owners: [owner({ dob: "2021-05-01" })] } })), /at least 12/);
   const teen = `${Number(t.slice(0, 4)) - 15}-01-15`;
-  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "X", owners: [owner({ dob: teen, nida: "" })] } })), /guardian/);
+  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "Test Shop", owners: [owner({ dob: teen, nida: "" })] } })), /guardian/);
   A.createBusiness(d, null, reg({ profile: { businessName: "Teen Shop", owners: [owner({ dob: teen, nida: "", guardianName: "Mama Juma", guardianPhone: "0713000111" })] } }));
-  refuses(() => A.requestLoan(d, B, { id: "L1", businessId: "B1", amount: 100000, purpose: "stock" }), /18 or older/);
+  refuses(() => A.requestLoan(d, B, { id: "L1", businessId: "B1", fiId: "FI-1", productId: "P-1", amount: 100000, purpose: "stock" }), /18 or older/);
 });
 
 test("date picker rules: real days only, including leap years", () => {
@@ -81,7 +83,7 @@ test("NIDA: 20 digits; owners in one business cannot share one; one person's bus
   assert.equal(validNida("19940512-11111-00001-21"), true);
   assert.equal(validNida("123"), false);
   const d = initialState(today(null));
-  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "X", owners: [owner({ nida: "123" })] } })), /20 digits/);
+  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "Test Shop", owners: [owner({ nida: "123" })] } })), /20 digits/);
   A.createBusiness(d, null, reg());
   A.createBusiness(d, null, reg({ id: "B2", userId: "UB2", profile: { businessName: "Neema Second Shop", owners: [owner({ phone: "+255712345679" })] } }));
   assert.deepEqual(linkedBusinesses(d, d.businesses[0]).map((b) => b.id), ["B2"]);
@@ -98,7 +100,7 @@ test("NIDA: 20 digits; owners in one business cannot share one; one person's bus
 test("several owners: shares must total 100%; co-owners confirm by their own phone code; women-owned is 51%+", () => {
   const d = initialState(today(null));
   const two = (a, b2) => [owner({ sharePct: a }), owner({ id: "O2", name: "Juma Ali Mushi", phone: "+255713111222", nida: "19900101222220000222", dob: "1990-01-01", gender: "male", sharePct: b2, main: false })];
-  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "X", legalForm: "partnership", owners: two(60, 30) } })), /100%/);
+  refuses(() => A.createBusiness(d, null, reg({ profile: { businessName: "Test Shop", legalForm: "partnership", owners: two(60, 30) } })), /100%/);
   A.createBusiness(d, null, reg({ profile: { businessName: "Partners", legalForm: "partnership", owners: two(60, 40) } }));
   const b = d.businesses[0];
   assert.equal(ownershipGender(b.profile), "female");
@@ -112,6 +114,8 @@ test("several owners: shares must total 100%; co-owners confirm by their own pho
 test("identity is verified by Data Admin only", () => {
   const d = world();
   refuses(() => A.verifyIdentity(d, OFF, "B1", true, "ok"), /not allowed/);
+  refuses(() => A.verifyIdentity(d, ADMIN, "B1", true, "ok ok"), /main owner's photo/);
+  Object.assign(d.businesses[0].profile.owners[0], { photoId: "p", idPhotoId: "i" });
   A.verifyIdentity(d, ADMIN, "B1", true, "NIDA photo and number match");
   assert.equal(d.businesses[0].kyc.status, "verified");
 });
@@ -221,12 +225,13 @@ test("daily close: no double close, no future close, every account counted, no n
 test("starting position: entered by the business, never negative, approved by someone else", () => {
   const d = initialState(today(null));
   A.createBusiness(d, null, reg());
-  refuses(() => A.saveOpening(d, OFF, "B1", { channels: { C1: 1000 } }, true), /Only the business enters/);
-  refuses(() => A.saveOpening(d, B, "B1", { channels: { C1: -900000 }, inventory: -5 }, true), /negative/);
-  A.saveOpening(d, B, "B1", { channels: { C1: 1000 } }, true);
+  refuses(() => A.saveOpening(d, OFF, "B1", OPEN({ C1: 1000, C2: 0 }), true), /Only the business enters/);
+  refuses(() => A.saveOpening(d, B, "B1", OPEN({ C1: -900000, C2: 0 }, { inventory: -5 }), true), /negative/);
+  refuses(() => A.saveOpening(d, B, "B1", { channels: { C1: 1000 } }, true), /Answer every box/);
+  A.saveOpening(d, B, "B1", OPEN({ C1: 1000, C2: 0 }), true);
   refuses(() => A.decideOpening(d, OFF, "B1", true, "ok ok"), /not allowed/);
   d.businesses[0].opening.by = { id: "U-DATA" };
-  refuses(() => A.decideOpening(d, ADMIN, "B1", true, "Checked"), /cannot approve/);
+  refuses(() => A.decideOpening(d, ADMIN, "B1", true, "Checked"), /cannot verify/);
 });
 
 // ---------------------------------------------------------------- Records Rating
@@ -300,25 +305,66 @@ test("owners: changing people or shares needs every owner's code, then Data Admi
   const d = world();
   d.businesses[0].kyc = { status: "verified" };
   const owners = [owner({ sharePct: 70 }), owner({ id: "O2", name: "Juma Ali Mushi", phone: "+255713111222", nida: "19900101222220000222", dob: "1990-01-01", gender: "male", sharePct: 30, main: false })];
-  refuses(() => A.changeProfile(d, B, "B1", { owners }), /must confirm/);
-  A.changeProfile(d, B, "B1", { owners }, { ownersConfirmed: true });
+  refuses(() => A.changeProfile(d, B, "B1", { owners, legalForm: "partnership" }), /must confirm/);
+  refuses(() => A.changeProfile(d, B, "B1", { owners }, { ownersConfirmed: true }), /exactly one owner/);
+  A.changeProfile(d, B, "B1", { owners, legalForm: "partnership" }, { ownersConfirmed: true });
   const cr = d.changeRequests.find((c) => c.fields?.owners);
   A.decideChange(d, ADMIN, cr.id, true, "Partnership deed seen");
   assert.equal(d.businesses[0].profile.owners.length, 2);
   assert.equal(d.businesses[0].kyc.status, "pending");
 });
 
-test("money accounts: added at once; starting balance and closure wait for Data Admin", () => {
+test("money accounts: a new account's balance counts at once, not verified; Data Admin verifies or takes it out", () => {
   const d = world();
   const id = A.addChannel(d, B, "B1", { type: "bank", name: "NMB", number: "4321", openingBalance: 150000 });
   assert.ok(d.businesses[0].channels.some((c) => c.id === id));
   const t = today(d);
-  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === id).balance, 0);
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === id).balance, 150000, "counts at once (9 Nov)");
+  assert.equal(d.entries.find((e) => e.kind === "channel_opening").unverified, true);
+  refuses(() => A.addChannel(d, B, "B1", { type: "bank", name: "NMB", number: "4321" }), /listed twice/);
   const cr = d.changeRequests.find((c) => c.type === "channelOpening");
   A.decideChange(d, ADMIN, cr.id, true, "Bank statement seen");
-  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === id).balance, 150000);
+  assert.equal(d.entries.find((e) => e.kind === "channel_opening").unverified, false);
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === id).balance, 150000, "counted once only");
+  refuses(() => A.requestCloseChannel(d, B, "B1", id), /still holds/);
+  A.addEntry(d, B, E(d, { kind: "transfer", channelId: id, toChannelId: "C1", amount: 150000 }));
   A.requestCloseChannel(d, B, "B1", id);
-  refuses(() => A.decideChange(d, ADMIN, d.changeRequests.find((c) => c.type === "closeChannel").id, true, "Owner asked"), /still holds/);
+  A.decideChange(d, ADMIN, d.changeRequests.find((c) => c.type === "closeChannel").id, true, "Owner asked");
+  assert.equal(d.businesses[0].channels.find((c) => c.id === id).archived, true);
+});
+
+test("starting position counts once saved, marked not verified; a correction request keeps it counting", () => {
+  const d = initialState(today(null));
+  A.createBusiness(d, null, reg());
+  const t = today(d);
+  A.saveOpening(d, B, "B1", OPEN({ C1: 1000, C2: 0 }), false);
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === "C1").balance, 0, "a draft never counts");
+  A.saveOpening(d, B, "B1", OPEN({ C1: 50000, C2: 20000 }), true);
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === "C1").balance, 50000, "saved: counts at once");
+  A.decideOpening(d, ADMIN, "B1", false, "Cash photo shows 40,000");
+  assert.equal(d.businesses[0].opening.status, "submitted");
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === "C1").balance, 50000, "still counts while being corrected");
+  A.saveOpening(d, B, "B1", OPEN({ C1: 40000, C2: 20000 }), true);
+  assert.equal(channelBalances(d, "B1", t).find((x) => x.channel.id === "C1").balance, 40000);
+  A.decideOpening(d, ADMIN, "B1", true, "Matches the photo now");
+  refuses(() => A.saveOpening(d, B, "B1", OPEN({ C1: 1, C2: 1 }), true), /verified and locked/);
+});
+
+test("To verify list: businesses that asked for a check or want a loan come first", async () => {
+  const { verifyQueue } = await import("../src/core/verify.js");
+  const d = initialState(today(null));
+  A.createBusiness(d, null, reg());
+  A.createBusiness(d, null, reg({ id: "B2", userId: "UB2", profile: { businessName: "Juma Hardware", owners: [owner({ id: "O9", name: "Juma Ali Hassan", phone: "+255713222333", nida: "19880303333330000333", dob: "1988-03-03", gender: "male" })] } }));
+  A.createBusiness(d, null, reg({ id: "B3", userId: "UB3", profile: { businessName: "Asha Salon", owners: [owner({ id: "O8", name: "Asha Said Omari", phone: "+255713444555", nida: "19920707444440000444", dob: "1992-07-07" })] } }));
+  for (const [bid, uid] of [["B1", "UB1"], ["B2", "UB2"], ["B3", "UB3"]]) A.saveOpening(d, { id: uid, role: "business", businessId: bid }, bid, OPEN({ C1: 1000, C2: 0 }), true);
+  A.requestCheck(d, { id: "UB3", role: "business", businessId: "B3" }, "B3", "I want a loan soon");
+  refuses(() => A.requestCheck(d, { id: "UB3", role: "business", businessId: "B3" }, "B3"), /already asked/);
+  d.businesses.find((b) => b.id === "B2").baseline.needFinance = "yes";
+  const q = verifyQueue(d, ADMIN, today(d));
+  assert.deepEqual(q.rows.map((r) => r.business.id), ["B3", "B2", "B1"]);
+  assert.equal(q.counts.opening, 3);
+  assert.equal(q.counts.asked, 1);
+  assert.equal(verifyQueue(d, OFF, today(d)).rows.length, 0, "an officer sees only assigned businesses");
 });
 
 // ---------------------------------------------------------------- Staff and organisations
@@ -352,7 +398,7 @@ test("lenders and suppliers: Data Admin checks the licence, a different System A
 test("supplier quotes follow their steps; no negative prices", () => {
   const d = world();
   const SUP = { id: "U-SUP1", role: "supplier", orgId: "SUP-1" };
-  A.requestQuote(d, B, { id: "Q1", supplierId: "SUP-1", item: "Fridge", requester: { type: "business", id: "B1" } });
+  A.requestQuote(d, B, { id: "Q1", supplierId: "SUP-1", item: "Fridge", qty: 1, requester: { type: "business", id: "B1" } });
   refuses(() => A.quoteStep(d, B, "Q1", "received"), /cannot be marked/);
   refuses(() => A.quoteStep(d, SUP, "Q1", "quoted", { quote: { unitPrice: -1, total: -40000 } }), /above zero/);
   A.quoteStep(d, SUP, "Q1", "quoted", { quote: { unitPrice: 400000, total: 400000 } });

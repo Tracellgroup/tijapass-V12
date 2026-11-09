@@ -2,6 +2,33 @@
 
 V12 is the V10 web MVP with the pre-live upgrades of 29 October 2026, deployed as its own site. Built from the *TijaPass V10 Master Functional Specification* (tabs 1 and 2; tab 4 is the acceptance-test matrix). It is a new code base in the V9 look (navy #071B3D, orange #F86C12, card layout); V9's repository, site and data are untouched. Each line gives the requirement ID and where it lives.
 
+## Revisions of 10 November 2026 (field-by-field review, version 12.0.0)
+
+From TFL's tests of V12, a review of every field and rule (69 issues) and the confirmed findings of an outside audit. Decisions: D1 refuse money out above the balance; D2 entries after today's close go to Data Admin as corrections; D3 NIDA optional until a loan; D4 NIDA must match the date of birth; D5 business address required; D6 settings and prices need a second person. And, decided on 9 Nov: the business's own figures count at once, marked "not verified", and staff verify them from a priority list. `tests/review.test.js` (22 tests) proves each fix.
+
+| Change | Issues | Where |
+|---|---|---|
+| Starting position counts as soon as it is saved, marked "Not verified yet"; correctable until TijaPass verifies and locks it; a correction request keeps it counting. Drafts never count | VF-05, decision 9 Nov | `accounting.js` `openingLines`; `actions.js` `saveOpening`, `decideOpening`; `Profile.jsx` |
+| New "To verify" list for officers, Data Admin, System Admin and Super users: counts, then businesses in priority order (asked for a check, loan request, shared with a lender, needs finance, large position, longest waiting). Business button "Ask TijaPass to check my records" | decision 9 Nov | `core/verify.js`; `VerifyQueue.jsx`; `actions.js` `requestCheck` |
+| NIDA: digits only, stops at 20, shown 8-5-5-2; its first 8 digits must equal the date of birth (and fill it); the same NIDA elsewhere must be the same person | REG-1/2/3, D4 | `people.js` `typeNida`, `nidaDob`, `nidaConflicts` |
+| Owners and business: shares 1-100%; ownership type fits the number of owners; company needs BRELA number; names need two names, letters only; email checked; staff counts and months operating checked; managers and guardians use their own phones; address required | REG-5 to REG-9, REG-13, REG-14, REG-16, VF-15, D5 | `people.js` `profileProblems`; `actions.js` `createBusiness`; `Onboard.jsx` |
+| Joining questions must agree with the accounts listed (filled in from them); wallet numbers are phone numbers; a repeated provider needs each number; banks chosen from a list; last 4 digits exactly; no duplicate accounts | REG-10/11/12, VF-17 | `actions.js` `channelProblems`, `baselineProblems`, `addChannel`; `Onboard.jsx` `BankName` |
+| Money accounts: list first, "Open a new account" shows the form; a new account's balance shows at once, "not verified"; it is never also in the starting position; closing needs an empty account | PRO-1 to PRO-5, VF-06/10 | `Profile.jsx` `MoneyAccounts`; `actions.js` `addChannel`, `requestCloseChannel` |
+| Profile: one pending request per detail; months operating counts up from joining (corrections need approval); plain labels; every amount says TZS; every starting-position box answered; Data Admin edits checked like the business's | PRO-6 to PRO-9, OPN-1 to OPN-5, VF-07/08 | `Profile.jsx`, `Onboard.jsx` `OpeningForm` |
+| Money out or moved above what the account holds is refused, checked for every later day too; Data Admin cannot approve such an entry either; available balance shown on screen | REC-A/B/C, VF-04, D1 | `accounting.js` `availableFrom`; `actions.js` `addEntry`, `decideHeld`; `Record.jsx` |
+| Nobody pays back more than is owed (customers, suppliers, loans, group loans), including the close reason "a customer paid" | REC-D, DAY-D | `actions.js` `owedFor`; `Close.jsx` |
+| Statement lines go through the same rules as typed entries; refused lines go to "lines to explain" with the reason | REC-E | `Record.jsx` `StatementUpload` |
+| Amount cap TZS 10 billion; only references with digits count as duplicates; text limits; a business records only its own money; one tap saves once | REC-F/H/I, GEN-A, VF-12 | `actions.js`, `components.jsx`, `Record.jsx` |
+| Entries after today's close go to Data Admin as corrections and the screens say so; "on time" uses Tanzania time; close reasons checked; counts in TZS | DAY-A/B/C/E, D2 | `Close.jsx`, `Record.jsx`, `dailyClose.js` `isOnTime`, `actions.js` `closeDay` |
+| Loans: request must fit the product's limits; "Withdraw request"; outside-loan instalment checks; expired quotes cannot be used; lender products checked (rate 0-100%, fee 0-20%, min TZS 10,000, 1-60 instalments) | FIN-A to FIN-G | `actions.js` `requestLoan`, `withdrawLoan`, `saveProduct`; `Finance.jsx`, `Fi.jsx` |
+| Quote steps belong to one side (supplier quotes, invoices, delivers; requester accepts, pays, receives); quote requests checked | SUP-A/B, VF-18 | `actions.js` `quoteStep`, `requestQuote` |
+| Right person only: consent, baseline corrections, rating disputes (once, in the window, with a reason), help answers, messages, quarterly answers, packages, assessments; role changes only for staff; reversals once; corrections keep their evidence level; identity verified only when complete | ADM-A/B/D/E/F/G, VF-13/14/20 | `actions.js` |
+| Settings and prices: proposed by System Admin, approved by a different Super user; settings range-checked, score weights must total 100 | ADM-C/H, D6 | `actions.js` `proposeConfig`, `decideConfig`, `settingsProblems`; `SystemAdmin.jsx` |
+| Lenders and suppliers: unique sign-in email, valid phone, 8-character password typed twice, unique licence; cannot sign in until approved | ORG-A/B/C | `actions.js` `registerOrg`, `decideOrg`; `SignIn.jsx` |
+| A new package starts when the current one ends | PKG-A | `actions.js` `payPackage` |
+| BOT report amounts from fewer than the minimum number of loans or businesses are hidden | VF-19 | `kpi.js`, `Kpi.jsx` |
+| Version number 12.0.0; test counts corrected; superseded 6-digit PIN note marked as history | VF-23 | `package.json`, docs |
+
 ## Revisions of 29 October 2026 (pre-live review)
 
 Agreed with TFL after comparing another TijaPass version and testing many practical scenarios (47 gap scenarios, all now refused). Every control is enforced in the rule layer (`src/lib/actions.js`, `src/core/people.js`), not only on screen; `tests/controls.test.js` (26 tests) proves each one. Spec: second decision log on the Overview tab; tab 4 rows marked (29 Oct).
@@ -49,7 +76,7 @@ Agreed with TFL after an independent developer reviewed V10. The spec is now the
 | Optional FI disbursement and collection fees, off by default | PKG-06 | `billing.js` `fiBill`; Packages and prices → Optional lender services |
 | BOT privacy: minimum group 10, minimum cell 3, complementary suppression, export rules, export log | BOT-01, BOT-07 | `kpi.js`, `Kpi.jsx` |
 | Baseline corrections keep the original answers | ONB-06 | `actions.js` `correctBaseline`; Officer → business file |
-| 6-digit PINs (OTP and MFA in the live pilot) | ROLE-01 | `Onboard.jsx`, `SignIn.jsx` |
+| 6-digit PINs (OTP and MFA in the live pilot). *Replaced on 29 Oct by 4-digit PINs; kept here as history.* | ROLE-01 | `Onboard.jsx`, `SignIn.jsx` |
 | Accountant review after posting for material uncertain entries | REC-12 | `actions.js` `addEntry` / `reviewPosted`; Approval queue → Accountant review |
 | Super user test-data loader: 10 businesses, 100 transactions, 8 ratings; load and remove | Tab 2, Test data | `src/lib/testData.js`, `SystemAdmin.jsx` `TestData`, `public/samples/test-data/` |
 | Stage 2 = installable web app (PWA) plus secure backend; native apps later | Tab 3 | Spec only |

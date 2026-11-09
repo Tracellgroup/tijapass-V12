@@ -361,7 +361,7 @@ export function RatingDetail({ rating, business, mode = "business" }) {
         </div>
       )}
       {dispute && (
-        <Modal title={L("Disagree with this rating", "Pinga kiwango hiki")} onClose={() => setDispute(false)} actions={<><button className="btn" onClick={() => setDispute(false)}>{L("Cancel", "Ghairi")}</button><button className="btn primary" disabled={why.trim().length < 5} onClick={() => { act((d) => disputeRating(d, user, rating.id, why.trim()), L("Sent to TijaPass Admin", "Imetumwa kwa TijaPass Admin")); setDispute(false); }}>{L("Send", "Tuma")}</button></>}>
+        <Modal title={L("Disagree with this rating", "Pinga kiwango hiki")} onClose={() => setDispute(false)} actions={<><button className="btn" onClick={() => setDispute(false)}>{L("Cancel", "Ghairi")}</button><button className="btn primary" disabled={why.trim().length < 10} onClick={() => { act((d) => disputeRating(d, user, rating.id, why.trim()), L("Sent to TijaPass Admin", "Imetumwa kwa TijaPass Admin")); setDispute(false); }}>{L("Send", "Tuma")}</button></>}>
           <Field label={L("Tell us what is wrong", "Tueleze kilichokosewa")}><Area value={why} onChange={setWhy} /></Field>
         </Modal>
       )}

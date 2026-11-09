@@ -3,7 +3,7 @@ import { CheckCircle2, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { REASONS, closesFor, compareCounts, daySummary, isClosed, unclosedPastDays } from "../../core/dailyClose.js";
 import { addDays, money, round, sum, today } from "../../core/util.js";
-import { closeDay } from "../../lib/actions.js";
+import { closeDay, owedFor } from "../../lib/actions.js";
 import { myBusiness } from "../../lib/access.js";
 import { L, tl } from "../../lib/i18n.js";
 import { useAction, useStore } from "../../lib/store.jsx";
@@ -71,7 +71,7 @@ export default function Close() {
     return (
       <Card>
         <h2>{L("Today is closed", "Leo imefungwa")}</h2>
-        <p className="mt">{L("Closed at", "Imefungwa saa")} {fmtTime(c?.closedAt)}. {L("You can still record money; it will count in today's figures.", "Bado unaweza kuandika pesa; itahesabiwa kwenye takwimu za leo.")}</p>
+        <p className="mt">{L("Closed at", "Imefungwa saa")} {fmtTime(c?.closedAt)}. {L("Anything you record for today now goes to TijaPass Admin as a correction, because today's money was already counted.", "Chochote utakachoandika kwa leo sasa kinakwenda kwa TijaPass Admin kama marekebisho, kwa sababu pesa za leo zimeshahesabiwa.")}</p>
         <button className="btn mt" onClick={() => go("record")}>{L("Record money", "Andika pesa")}</button>
       </Card>
     );
@@ -84,6 +84,8 @@ export default function Close() {
   const allCounted = b.channels.filter((c) => !c.archived).every((c) => counts[c.id] !== undefined && counts[c.id] !== "");
 
   const cmp = compareStep ? compareCounts(state, b.id, counts, to) : null;
+  // "A customer paid" can only cover what customers owe (9 Nov, DAY-D).
+  const customersOwe = owedFor(state, b.id, "debtor_receipt");
   const explained = (chId) => sum(Object.values(reasons[chId] || {}), (v) => Number(v) || 0);
   const remainderFor = (r) => round(Math.abs(r.diff) - explained(r.channelId), 2);
 
@@ -120,7 +122,7 @@ export default function Close() {
           <p className="muted">{L("Count everything, business and personal: first the cash in hand, then look at each wallet and bank balance on your phone.", "Hesabu zote, za biashara na binafsi: kwanza pesa taslimu mkononi, kisha angalia salio la kila pochi na benki kwenye simu yako.")}</p>
           <div className="form mt">
             {b.channels.filter((c) => !c.archived).map((c) => (
-              <Field key={c.id} label={c.type === "cash" ? L("Cash in hand now", "Pesa taslimu mkononi sasa") : `${c.name}: ${L("balance now", "salio sasa")}`}>
+              <Field key={c.id} label={c.type === "cash" ? L("Cash in hand now (TZS)", "Pesa taslimu mkononi sasa (TZS)") : `${c.name}: ${L("balance now (TZS)", "salio sasa (TZS)")}`}>
                 <AmountInput big value={counts[c.id] ?? ""} onChange={(v) => setCounts({ ...counts, [c.id]: v === "" ? "" : v })} />
               </Field>
             ))}
@@ -154,12 +156,13 @@ export default function Close() {
                       {REASONS[side].map((x) => {
                         const val = reasons[r.channelId]?.[x.key];
                         const on = val !== undefined;
+                        const noDebt = x.kind === "debtor_receipt" && customersOwe <= 0;
                         return (
                           <div key={x.key} className="row">
-                            <button className={`choice ${on ? "on" : ""}`} style={{ flex: "1 1 220px" }} onClick={() => {
+                            <button className={`choice ${on ? "on" : ""}`} style={{ flex: "1 1 220px" }} disabled={noDebt && !on} title={noDebt ? L("No customer owes you in your records", "Hakuna mteja anayekudai kwenye kumbukumbu") : undefined} onClick={() => {
                               const cur = { ...(reasons[r.channelId] || {}) };
                               if (on) delete cur[x.key];
-                              else cur[x.key] = Math.max(0, remainderFor(r));
+                              else cur[x.key] = Math.max(0, x.kind === "debtor_receipt" ? Math.min(remainderFor(r), customersOwe) : remainderFor(r));
                               setReasons({ ...reasons, [r.channelId]: cur });
                             }}>{on ? "✓ " : ""}{tl(x)}</button>
                             {on && <div style={{ flex: "0 1 170px" }}><AmountInput value={val} onChange={(v) => setReasons({ ...reasons, [r.channelId]: { ...reasons[r.channelId], [x.key]: v } })} /></div>}

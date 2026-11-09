@@ -29,10 +29,19 @@ export function bookEntries(state, businessId, to = null, from = null) {
     .sort((a, b) => (a.date === b.date ? String(a.createdAt).localeCompare(String(b.createdAt)) : a.date.localeCompare(b.date)));
 }
 
+// A saved starting position counts in the books at once, marked "not verified" until TijaPass checks it
+// (decided 9 Nov 2026: at a million businesses, nobody can wait for a visit or an approval to start using the
+// app). A draft never counts. Lenders see whether it is verified, and loans need it verified (reconciled gate).
+export const openingCounts = (business) => ["submitted", "approved"].includes(business?.opening?.status);
+export const openingVerified = (business) => business?.opening?.status === "approved";
 export function openingLines(business) {
   const o = business?.opening;
-  if (!o || !o.values) return [];
-  const v = o.values;
+  if (!o || !o.values || !openingCounts(business)) return [];
+  return openingLinesFor(business, o.values);
+}
+// The journal lines a set of starting-position values would make (used for the preview while typing).
+export function openingLinesFor(business, values) {
+  const v = values || {};
   const lines = [];
   for (const ch of business.channels || []) {
     const amt = Number(v.channels?.[ch.id]) || 0;
@@ -124,6 +133,22 @@ export function balancesAt(state, businessId, asAt = null) {
   const bal = {};
   for (const j of journal(state, businessId, asAt)) j.lines.forEach((l) => (bal[l.acc] = (bal[l.acc] || 0) + l.dr - l.cr));
   return bal;
+}
+
+// Lowest balance an account reaches from `fromDate` to `toDate` (inclusive).
+// A payment dated in the past must fit every later day too, so no later day goes negative (REC-C).
+export function availableFrom(state, businessId, acc, fromDate, toDate) {
+  const endOfDay = {};
+  let bal = 0;
+  let atStart = 0;
+  for (const x of journal(state, businessId, toDate)) {
+    for (const l of x.lines) if (l.acc === acc) bal += l.dr - l.cr;
+    if (x.date < fromDate) atStart = bal;
+    else endOfDay[x.date] = bal;
+  }
+  const lows = Object.values(endOfDay);
+  const low = lows.length ? Math.min(...lows) : atStart;
+  return low;
 }
 
 export function channelBalance(state, businessId, channelId, asAt = null) {

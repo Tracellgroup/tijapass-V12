@@ -121,7 +121,7 @@ export function Activity() {
           {pending.map((p) => (
             <div key={`${p.importId}-${p.lineId}`} className="stack">
               <div className="item">
-                <div className="grow"><b>{fmtDate(p.date)}</b><div className="small muted">{p.description || "—"}</div>{p.suggestTransfer && <div className="small amber">{L("A withdrawal or deposit: was it moved to cash, a payment, or personal use?", "Kutoa au kuweka: ilihamishiwa taslimu, ilikuwa malipo, au matumizi binafsi?")}</div>}</div>
+                <div className="grow"><b>{fmtDate(p.date)}</b><div className="small muted">{p.description || "—"}</div>{p.why && <div className="small amber">{p.why}</div>}{p.suggestTransfer && <div className="small amber">{L("A withdrawal or deposit: was it moved to cash, a payment, or personal use?", "Kutoa au kuweka: ilihamishiwa taslimu, ilikuwa malipo, au matumizi binafsi?")}</div>}</div>
                 <b className={p.dir === "in" ? "green" : "amber"}>{p.dir === "out" ? "−" : ""}{money(p.amount)}</b>
                 {explain !== p.lineId + p.importId && <button className="btn small" onClick={() => setExplain(p.lineId + p.importId)}>{L("Explain", "Eleza")}</button>}
               </div>

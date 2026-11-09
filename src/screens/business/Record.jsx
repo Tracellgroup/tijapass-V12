@@ -7,7 +7,7 @@ import { checkStatement, detectColumns, matchExisting, needsExplanation, pdfText
 import { readDescription } from "../../core/reader.js";
 import { readStatementFile } from "../../core/xlsxReader.js";
 import { money, nowISO, today, uid } from "../../core/util.js";
-import { addEntry, audit, notify } from "../../lib/actions.js";
+import { addEntry, audit, availableToSpend, notify, owedFor, TEXT_MAX } from "../../lib/actions.js";
 import { readEntry, readStatementText } from "../../lib/ai.js";
 import { putFile } from "../../lib/files.js";
 import { L, getLang, tl } from "../../lib/i18n.js";
@@ -47,9 +47,11 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
   const t = today(state);
   const [dir, setDir] = useState(initial.dir || null);
   const [amount, setAmount] = useState(initial.amount ?? "");
-  const [channelId, setChannelId] = useState(initial.channelId || business.channels[0]?.id);
+  const open = business.channels.filter((c) => !c.archived);
+  const [channelId, setChannelId] = useState(initial.channelId || open[0]?.id);
   const [touchedChannel, setTouchedChannel] = useState(Boolean(initial.channelId));
-  const [toChannelId, setToChannelId] = useState(business.channels[1]?.id || "");
+  const [toChannelId, setToChannelId] = useState(open.find((c) => c.id !== (initial.channelId || open[0]?.id))?.id || "");
+  const [saving, setSaving] = useState(false);
   const [date, setDate] = useState(fixedDate || t);
   const [description, setDescription] = useState(initial.description || "");
   const [payer, setPayer] = useState("");
@@ -76,7 +78,8 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
     setStage(GROUP_KINDS.includes(k) ? "group" : "confirm");
   };
 
-  const closedDay = !fixedDate && isClosed(state, business.id, date) && date !== t;
+  // A day already closed, today included: the entry goes to TijaPass Admin as a correction (decided 9 Nov, D2).
+  const closedDay = !fixedDate && isClosed(state, business.id, date);
   const read = async () => {
     setBusy(true);
     setHint("");
@@ -117,12 +120,22 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
 
   const amt = Number(amount) || 0;
   const flow = kind ? flowOf(kind) : null;
+  // What the account can pay out on this date without any later day going below zero (D1, 9 Nov).
+  const available = channelId ? availableToSpend(state, business.id, channelId, date) : 0;
+  const tooMuch = (flow === "out" || flow === "transfer" || (!flow && (dir === "transfer"))) && amt > available + 0.5;
+  const owed = kind ? owedFor(state, business.id, kind) : null;
+  const principal = amt - (Number(interest) || 0);
+  const overOwed = owed !== null && principal > owed + 0.5;
+  const tijapassLoanDue = (kind === "loan_repayment") && state.loans.some((l) => l.businessId === business.id && l.status === "disbursed" && (l.schedule || []).some((x) => !x.paidAt));
   const needsChannel = flow !== "none";
   const isRepayment = kind === "loan_repayment" || kind === "group_loan_repayment";
-  const formOk = dir && (dir === "transfer" ? amt > 0 && channelId && toChannelId && channelId !== toChannelId : description.trim().length > 1 || amt > 0);
+  const transferTooMuch = dir === "transfer" && amt > available + 0.5;
+  const formOk = dir && (dir === "transfer" ? amt > 0 && channelId && toChannelId && channelId !== toChannelId && !transferTooMuch : description.trim().length > 1 || amt > 0);
   const conflict = Boolean(reading?.conflict && kind === reading.kind);
 
   const post = () => {
+    if (saving) return; // one tap saves once
+    setSaving(true);
     const entry = {
       id: uid("E"), businessId: business.id, date, kind, amount: amt, channelId: needsChannel ? channelId : null, toChannelId: kind === "transfer" ? toChannelId : null,
       groupMode, description: description.trim(), payer: payer.trim(), reference: reference.trim(), photoId, source: fromReady ? "ready" : usedVoice ? "voice" : initial.source || "typed",
@@ -137,6 +150,7 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
       }
       return r;
     });
+    setSaving(false);
     if (ev) {
       setResult(ev);
       setStage("done");
@@ -185,11 +199,12 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
                 <AmountInput big value={amount} onChange={setAmount} />
               </Field>
               <Field label={dir === "transfer" ? L("From", "Kutoka") : L("Where did the money go in or out?", "Pesa iliingia au kutoka wapi?")}>
-                <Chips value={channelId} onChange={(v) => { setChannelId(v); setTouchedChannel(true); }} options={business.channels.filter((c) => !c.archived).map((c) => ({ value: c.id, label: c.name }))} />
+                <Chips value={channelId} onChange={(v) => { setChannelId(v); setTouchedChannel(true); if (v === toChannelId) setToChannelId(open.find((c) => c.id !== v)?.id || ""); }} options={open.map((c) => ({ value: c.id, label: c.name }))} />
+                {dir !== "in" && channelId && <small className={transferTooMuch ? "amber" : ""}>{L("Available", "Inayopatikana")}: {money(available)}{transferTooMuch ? ` · ${L("You cannot move more than this. Record the money that came in first.", "Huwezi kuhamisha zaidi ya hii. Andika kwanza pesa iliyoingia.")}` : ""}</small>}
               </Field>
               {dir === "transfer" && (
                 <Field label={L("To", "Kwenda")}>
-                  <Chips value={toChannelId} onChange={setToChannelId} options={business.channels.filter((c) => c.id !== channelId && !c.archived).map((c) => ({ value: c.id, label: c.name }))} />
+                  <Chips value={toChannelId} onChange={setToChannelId} options={open.filter((c) => c.id !== channelId).map((c) => ({ value: c.id, label: c.name }))} />
                 </Field>
               )}
               {!fixedDate && (
@@ -199,7 +214,7 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
               )}
               {dir !== "transfer" && (
                 <Field label={L("What was it for? Type or speak, in Kiswahili or English", "Ilikuwa ya nini? Andika au ongea, kwa Kiswahili au Kiingereza")}>
-                  <Area value={description} onChange={setDescription} rows={2} placeholder={dir === "in" ? "nimeuza mboga elfu ishirini cash" : "nimelipa kodi ya pango"} />
+                  <Area value={description} maxLength={TEXT_MAX.description} onChange={setDescription} rows={2} placeholder={dir === "in" ? "nimeuza mboga elfu ishirini cash" : "nimelipa kodi ya pango"} />
                   <div className="row"><VoiceButton onText={(txt) => { setDescription((x) => `${x ? `${x} ` : ""}${txt}`); setUsedVoice(true); }} /></div>
                 </Field>
               )}
@@ -208,8 +223,8 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
                 <details>
                   <summary className="small bold" style={{ cursor: "pointer", padding: "6px 0" }}>{L("More (optional): who, reference, receipt photo", "Zaidi (si lazima): nani, kumbukumbu, picha ya risiti")}</summary>
                   <div className="form two mt">
-                    <Field label={dir === "in" ? L("From whom (optional)", "Kutoka kwa nani (si lazima)") : L("To whom (optional)", "Kwa nani (si lazima)")}><Text value={payer} onChange={setPayer} /></Field>
-                    <Field label={L("Reference or receipt number (optional)", "Namba ya kumbukumbu au risiti (si lazima)")}><Text value={reference} onChange={setReference} /></Field>
+                    <Field label={dir === "in" ? L("From whom (optional)", "Kutoka kwa nani (si lazima)") : L("To whom (optional)", "Kwa nani (si lazima)")}><Text value={payer} maxLength={TEXT_MAX.payer} onChange={setPayer} /></Field>
+                    <Field label={L("Reference or receipt number (optional)", "Namba ya kumbukumbu au risiti (si lazima)")}><Text value={reference} maxLength={TEXT_MAX.reference} onChange={setReference} /></Field>
                     <PhotoInput label={L("Receipt photo (optional)", "Picha ya risiti (si lazima)")} value={photoId} onChange={setPhotoId} />
                   </div>
                 </details>
@@ -294,11 +309,14 @@ export function EntryForm({ business, initial = {}, fixedDate, onPosted, onCance
           )}
           {isRepayment && Number(interest) >= amt && amt > 0 && <p className="notice warn">{L("Interest must be less than the whole repayment.", "Riba lazima iwe chini ya rejesho lote.")}</p>}
           {closedDay && <p className="notice warn">{holdText("closedDay")}</p>}
+          {tooMuch && <p className="notice bad">{L(`${business.channels.find((c) => c.id === channelId)?.name} has only ${money(available)} available${date < t ? " for this date" : ""}. Record the money that came in first, or choose another account.`, `${business.channels.find((c) => c.id === channelId)?.name} ina ${money(available)} tu${date < t ? " kwa tarehe hii" : ""}. Andika kwanza pesa iliyoingia, au chagua akaunti nyingine.`)}</p>}
+          {overOwed && <p className="notice bad">{owed > 0 ? L(`Your records show only ${money(owed)} owed here. Record the rest as what it really was.`, `Kumbukumbu zako zinaonyesha ${money(owed)} tu. Andika kilichobaki kama kilivyokuwa.`) : kind === "debtor_receipt" ? L("Your records show no customer owes you. Record the credit sale first, or choose \"other income\".", "Kumbukumbu zako hazionyeshi mteja anayekudai. Andika kwanza mauzo ya mkopo, au chagua \"mapato mengine\".") : kind === "supplier_payment" ? L("Your records show you owe no supplier. Record the credit purchase first, or choose what you bought.", "Kumbukumbu zako hazionyeshi deni la msambazaji. Andika kwanza ununuzi wa mkopo, au chagua ulichonunua.") : L("Your records show no loan. Record the loan first (\"I borrowed money\") or check your starting position.", "Kumbukumbu zako hazionyeshi mkopo. Andika kwanza mkopo (\"Nimekopa pesa\") au hakiki hali ya kuanzia.")}</p>}
+          {tijapassLoanDue && <p className="notice">{L("Paying your TijaPass loan? Use Finance → My loans → Pay, so it is not counted twice.", "Unalipa mkopo wa TijaPass? Tumia Fedha → Mikopo yangu → Lipa, ili usihesabiwe mara mbili.")}</p>}
           {conflict && <p className="notice warn">{holdText("direction")} {L("If you save, TijaPass Admin will check it first.", "Ukihifadhi, TijaPass Admin wataukagua kwanza.")}</p>}
           {reading?.amount && amt && reading.amount !== amt && <p className="notice warn">{L("Your words said", "Maneno yako yalisema")} {money(reading.amount)}. {L("The amount typed above will be used.", "Kiasi kilichoandikwa juu ndicho kitatumika.")}</p>}
           <div className="row">
             <button className="btn" onClick={() => setStage("form")}>{L("Edit", "Badilisha")}</button>
-            <button className="btn primary big" style={{ flex: 1 }} disabled={isRepayment && Number(interest) >= amt && amt > 0} onClick={post}>{L("Save", "Hifadhi")}</button>
+            <button className="btn primary big" style={{ flex: 1 }} disabled={(isRepayment && Number(interest) >= amt && amt > 0) || tooMuch || overOwed || saving} onClick={post}>{L("Save", "Hifadhi")}</button>
           </div>
         </div>
       )}
@@ -348,7 +366,7 @@ const PROVIDERS = [/m-?pesa/i, /airtel money/i, /mixx|tigo ?pesa/i, /halopesa/i,
 function StatementUpload({ business }) {
   const { state, user } = useStore();
   const act = useAction();
-  const [channelId, setChannelId] = useState(business.channels.find((c) => c.type !== "cash")?.id || business.channels[0].id);
+  const [channelId, setChannelId] = useState(business.channels.find((c) => c.type !== "cash" && !c.archived)?.id || business.channels[0].id);
   const [file, setFile] = useState(null);
   const [password, setPassword] = useState("");
   const [needPw, setNeedPw] = useState(false);
@@ -398,10 +416,21 @@ function StatementUpload({ business }) {
     const toPost = res.lines.filter((l) => l.status === "post");
     const toExplain = res.lines.filter((l) => l.status === "explain");
     act((d) => {
-      const evidence = ["A", "B"].includes(res.grade) ? "supported" : "declared";
-      for (const l of toPost) d.entries.push({ id: uid("E"), businessId: business.id, date: l.date, kind: l.kind, amount: l.amount, channelId, description: l.description, reference: l.reference, status: "posted", source: "import", importId, importGrade: res.grade, evidence, createdAt: nowISO(d), createdBy: { id: user.id, name: user.name, role: user.role } });
-      d.imports.unshift({ id: importId, businessId: business.id, channelId, fileName: file.name, at: nowISO(d), grade: res.grade, checks: res.checks, accountName: res.accountName, posted: toPost.length, duplicates: res.lines.filter((l) => l.status === "dup").length, pending: toExplain.map((l) => ({ lineId: l.lineId, date: l.date, description: l.description, amount: l.amount, dir: l.dir, channelId, suggestTransfer: l.suggestTransfer, grade: res.grade })) });
-      audit(d, user, "Statement uploaded", business.id, { after: { file: file.name, posted: toPost.length } });
+      // Each line goes through the same rules as a typed entry (9 Nov, REC-E): a line the rules refuse (for example
+      // money out before the money in was recorded) joins the lines to explain instead of being posted.
+      const refused = [];
+      let posted = 0;
+      for (const l of [...toPost].sort((a, b) => a.date.localeCompare(b.date) || (a.dir === "in" ? -1 : 1))) {
+        try {
+          addEntry(d, user, { id: uid("E"), businessId: business.id, date: l.date, kind: l.kind, amount: l.amount, channelId, description: String(l.description || "").slice(0, TEXT_MAX.description), reference: String(l.reference || "").slice(0, TEXT_MAX.reference), source: "import", importId, importGrade: res.grade });
+          posted += 1;
+        } catch (e) {
+          refused.push({ ...l, why: e.message });
+        }
+      }
+      const pending = [...toExplain, ...refused].map((l) => ({ lineId: l.lineId, date: l.date, description: l.description, amount: l.amount, dir: l.dir, channelId, suggestTransfer: l.suggestTransfer, grade: res.grade, why: l.why || null }));
+      d.imports.unshift({ id: importId, businessId: business.id, channelId, fileName: file.name, at: nowISO(d), grade: res.grade, checks: res.checks, accountName: res.accountName, posted, duplicates: res.lines.filter((l) => l.status === "dup").length, pending });
+      audit(d, user, "Statement uploaded", business.id, { after: { file: file.name, posted, toExplain: pending.length } });
       if (!res.checks.runningBalance && res.checks.runningBalance !== null) notify(d, { role: "dataAdmin" }, { en: "Statement balances do not add up", sw: "Salio la taarifa halilingani" }, { en: `${business.profile.businessName}: ${file.name}`, sw: `${business.profile.businessName}: ${file.name}` }, "ledger");
     }, L("Statement lines saved", "Mistari ya taarifa imehifadhiwa"));
     setRes(null); setFile(null);
@@ -412,7 +441,7 @@ function StatementUpload({ business }) {
   return (
     <Card title={L("Upload a bank or mobile money statement", "Pakia taarifa ya benki au pesa ya simu")}>
       <div className="form">
-        <Field label={L("Which account is this statement for?", "Taarifa hii ni ya akaunti ipi?")}><Chips value={channelId} onChange={setChannelId} options={business.channels.filter((x) => x.type !== "cash").map((x) => ({ value: x.id, label: x.name }))} /></Field>
+        <Field label={L("Which account is this statement for?", "Taarifa hii ni ya akaunti ipi?")}><Chips value={channelId} onChange={setChannelId} options={business.channels.filter((x) => x.type !== "cash" && !x.archived).map((x) => ({ value: x.id, label: x.name }))} /></Field>
         <Field label={L("Statement file (PDF, CSV or Excel)", "Faili la taarifa (PDF, CSV au Excel)")}><input className="input" type="file" accept=".pdf,.csv,.tsv,.txt,.xlsx" onChange={(e) => { setFile(e.target.files?.[0] || null); setRes(null); setErr(""); setNeedPw(false); }} /></Field>
         {needPw && <Field label={L("PDF password", "Nenosiri la PDF")}><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>}
         {err && <p className="notice bad">{err}</p>}

@@ -7,11 +7,14 @@ import { dueList, nextDue } from "../../core/rating.js";
 import { SECTORS } from "../../core/seed.js";
 import { addDays, daysBetween, money, today, uid } from "../../core/util.js";
 import { linkedBusinesses, ownersOf } from "../../core/people.js";
-import { assignOfficer, correctBaseline, requestChange, unlockPin, verifyIdentity } from "../../lib/actions.js";
+import { assignOfficer, correctBaseline, decideOpening, identityMissing, requestChange, unlockPin, verifyIdentity } from "../../lib/actions.js";
+import { openingLines } from "../../core/accounting.js";
+import { ACCOUNTS } from "../../core/kinds.js";
+import { verifyQueue } from "../../core/verify.js";
 import { atLeast, businessesInScope, canSeeBusiness } from "../../lib/access.js";
 import { L, tl } from "../../lib/i18n.js";
 import { useAction, useStore } from "../../lib/store.jsx";
-import { BusinessPicker, Card, DateRange, Empty, Field, ReasonModal, RatingBadge, Select, Stat, StatusPill, Tabs, Text, fmtDate, fmtDateTime, useRange } from "../../ui/components.jsx";
+import { BusinessPicker, Card, DateRange, Empty, Field, Pill, ReasonModal, RatingBadge, Select, Stat, StatusPill, Tabs, Text, fmtDate, fmtDateTime, useRange } from "../../ui/components.jsx";
 import { ActivityList, LoanTracker, RatingHistory, Statements, crType, daysClosed30 } from "../common.jsx";
 import { ProfileDetails } from "../business/Profile.jsx";
 import { OpeningForm } from "../Onboard.jsx";
@@ -39,6 +42,7 @@ export function OfficerHome() {
         <Stat label={L("Closed today", "Zimefunga leo")} value={`${closedToday} / ${list.length}`} onClick={() => go("off-close")} />
         <Stat label={L("Flagged differences (7 days)", "Tofauti zilizoletwa (siku 7)")} value={flagged.length} onClick={() => go("off-close")} />
         <Stat label={L("Records checks due this week", "Ukaguzi wiki hii")} value={due.length} note={`${due.filter((x) => x.overdue).length} ${L("overdue", "umechelewa")}`} onClick={user.role === "officer" ? () => go("off-rating") : () => go("rating-review")} />
+        <Stat label={L("To verify", "Za kuhakiki")} value={verifyQueue(state, user, today(state)).rows.length} note={L("highest priority first", "kipaumbele kwanza")} onClick={() => go("verify")} />
         <Stat label={L("Pending approvals", "Zinazosubiri idhini")} value={pendingApprovals} onClick={() => go(atLeast(user, "dataAdmin") ? "approvals" : "off-changes")} />
         {atLeast(user, "dataAdmin") && <Stat label={L("Open queries", "Maswali wazi")} value={openQueries} onClick={() => go("admin-queries")} />}
       </div>
@@ -103,12 +107,30 @@ export function BusinessFile({ businessId, initial = "activity" }) {
       {tab === "rating" && <RatingHistory business={b} mode="admin" />}
       {tab === "profile" && <><IdentityCard business={b} /><ProfileDetails business={b} /><BaselineCard business={b} /></>}
       {tab === "opening" && (
-        <Card title={L("Starting position", "Hali ya kuanzia")} actions={b.opening ? <StatusPill status={b.opening.status} /> : null}>
-          {b.opening?.status === "approved" ? (atLeast(user, "dataAdmin") ? <OpeningForm business={b} mode="admin" /> : <p>{L("Approved and locked. Only Data Admin can change it.", "Imeidhinishwa na imefungwa. Msimamizi wa Data pekee anaweza kuibadilisha.")}</p>)
-            : b.opening?.status === "submitted" ? <p>{L("Waiting for Data Admin approval.", "Inasubiri idhini ya Msimamizi wa Data.")}</p> : <p className="muted">{L("Not entered yet. The business enters its starting position in its own Profile; you may explain it, but not type it.", "Bado haijaingizwa. Biashara inaingiza hali yake ya kuanzia kwenye Wasifu wake; unaweza kuieleza, lakini si kuiandika.")}</p>}
+        <Card title={L("Starting position", "Hali ya kuanzia")} actions={b.opening ? (b.opening.status === "approved" ? <Pill tone="green">{L("Verified", "Imehakikiwa")}</Pill> : b.opening.status === "submitted" ? <Pill tone="orange">{L("Not verified yet", "Bado haijahakikiwa")}</Pill> : <StatusPill status={b.opening.status} />) : null}>
+          {b.opening?.status === "approved" ? (atLeast(user, "dataAdmin") ? <OpeningForm business={b} mode="admin" /> : <p>{L("Verified and locked. Only Data Admin can change it.", "Imehakikiwa na imefungwa. Msimamizi wa Data pekee anaweza kuibadilisha.")}</p>)
+            : b.opening?.status === "submitted" ? <OpeningToVerify business={b} /> : <p className="muted">{L("Not entered yet. The business enters its starting position in its own Profile; you may explain it, but not type it.", "Bado haijaingizwa. Biashara inaingiza hali yake ya kuanzia kwenye Wasifu wake; unaweza kuieleza, lakini si kuiandika.")}</p>}
         </Card>
       )}
       {tab === "loans" && (loans.length ? loans.map((l) => <Card key={l.id} title={`${l.id} · ${money(l.offer?.principal || l.amount)}`} actions={<StatusPill status={l.status} />}>{l.schedule ? <LoanTracker loan={l} business={b} /> : <p className="small muted">{l.purpose}</p>}</Card>) : <Empty text={L("No loans.", "Hakuna mikopo.")} />)}
+    </div>
+  );
+}
+
+// A starting position in use but not verified yet (9 Nov): its lines, and for Data Admin the two decisions.
+function OpeningToVerify({ business: b }) {
+  const { user } = useStore();
+  const act = useAction();
+  const [modal, setModal] = useState(null);
+  const lines = openingLines(b);
+  return (
+    <div className="stack">
+      <p className="small">{L("In use now, not verified yet.", "Inatumika sasa, bado haijahakikiwa.")} {L("Saved", "Imehifadhiwa")} {fmtDate(b.opening.at)}{b.opening.returned ? ` · ${L("correction asked", "marekebisho yameombwa")}: ${b.opening.returned.reason}` : ""}</p>
+      <div className="kv">{lines.map((l) => [<span key={`a${l.acc}`}>{l.acc.startsWith("ch:") ? b.channels.find((c) => `ch:${c.id}` === l.acc)?.name : l.acc === "openingEquity" ? L("Owner's starting stake", "Mtaji wa mmiliki wa kuanzia") : tl(ACCOUNTS[l.acc])}</span>, <span key={`b${l.acc}`}>{money(l.dr || l.cr)}</span>])}</div>
+      {atLeast(user, "dataAdmin") ? (
+        <div className="row"><button className="btn" onClick={() => setModal(false)}>{L("Ask to correct", "Omba marekebisho")}</button><button className="btn primary" onClick={() => setModal(true)}>{L("Verified: lock it", "Imehakikiwa: funga")}</button></div>
+      ) : <p className="tiny muted">{L("Data Admin verifies it. If you visited, add what you saw as a change request or in the records check.", "Msimamizi wa Data anaihakiki. Kama ulitembelea, andika ulichoona kama ombi la mabadiliko au kwenye ukaguzi.")}</p>}
+      {modal !== null && <ReasonModal title={modal ? L("Starting position verified: lock it", "Hali ya kuanzia imehakikiwa: ifunge") : L("Ask the business to correct it (it keeps counting meanwhile)", "Omba biashara iisahihishe (inaendelea kuhesabiwa)")} onClose={() => setModal(null)} onSubmit={(r) => act((d) => decideOpening(d, user, b.id, modal, r), L("Saved", "Imehifadhiwa"))} />}
     </div>
   );
 }
@@ -122,6 +144,8 @@ function IdentityCard({ business }) {
   const owners = ownersOf(business.profile);
   const linked = linkedBusinesses(state, business);
   const k = business.kyc || { status: "pending" };
+  // Identity is verified only when complete (9 Nov, ADM-F); NIDA stays optional until then (D3).
+  const missing = identityMissing(business);
   const canUnlock = u && (u.pinBlocked || (u.lockedUntil && u.lockedUntil > Date.now())) && (atLeast(user, "dataAdmin") || business.officerId === user.id);
   return (
     <Card title={L("Identity and sign-in", "Utambulisho na kuingia")}>
@@ -132,7 +156,7 @@ function IdentityCard({ business }) {
         <span>{L("Same owner's other businesses", "Biashara nyingine za mmiliki huyu")}</span><span>{linked.length ? linked.map((x) => x.profile.businessName).join(", ") : "—"}</span>
       </div>
       <div className="row mt">
-        {atLeast(user, "dataAdmin") && k.status !== "verified" && <button className="btn primary small" onClick={() => setModal("verify")}>{L("Identity verified", "Utambulisho umehakikiwa")}</button>}
+        {atLeast(user, "dataAdmin") && k.status !== "verified" && (missing.length ? <span className="small amber">{L("Cannot verify yet. Missing", "Haiwezi kuhakikiwa bado. Kinakosekana")}: {missing.join("; ")}</span> : <button className="btn primary small" onClick={() => setModal("verify")}>{L("Identity verified", "Utambulisho umehakikiwa")}</button>)}
         {atLeast(user, "dataAdmin") && k.status !== "rejected" && <button className="btn small" onClick={() => setModal("reject")}>{L("Not verified", "Haujahakikiwa")}</button>}
         {canUnlock && <button className="btn small" onClick={() => setModal("unlock")}>{L("Unlock sign-in", "Fungua kuingia")}</button>}
       </div>

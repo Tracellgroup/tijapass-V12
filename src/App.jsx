@@ -1,4 +1,5 @@
 // Routes and access checks (ROLE-03): every screen states who may open it; anything else returns the user to their home.
+import VerifyQueue from "./screens/admin/VerifyQueue.jsx";
 import { useEffect } from "react";
 import { myOrg } from "./lib/access.js";
 import { L, tl } from "./lib/i18n.js";
@@ -37,7 +38,7 @@ export const ROUTES = {
   "fi-home": { C: FiHome, roles: FI }, "fi-directory": { C: Directory, roles: FI }, "fi-business": { C: FiBusiness, roles: FI, title: t("Business file", "Faili la biashara") }, "fi-loans": { C: FiLoans, roles: FI },
   "fi-loan": { C: FiLoan, roles: FI, title: t("Loan request", "Ombi la mkopo") }, "fi-products": { C: Products, roles: FI }, "fi-suppliers": { C: FiSuppliers, roles: FI }, "fi-billing": { C: Billing, roles: FI }, "org-profile": { C: OrgProfile, roles: [...FI, ...SUP] },
   "sup-home": { C: SupHome, roles: SUP }, "sup-products": { C: SupProducts, roles: SUP }, "sup-quotes": { C: SupQuotes, roles: SUP }, "sup-orders": { C: SupOrders, roles: SUP },
-  "off-businesses": { C: OfficerHome, roles: OFF }, "off-rating": { C: RatingDue, roles: ["officer"] }, "off-activity": { C: OffActivity, roles: OFF },
+  "off-businesses": { C: OfficerHome, roles: OFF }, verify: { C: VerifyQueue, roles: OFF }, "off-rating": { C: RatingDue, roles: ["officer"] }, "off-activity": { C: OffActivity, roles: OFF },
   "off-close": { C: OffClose, roles: OFF }, "off-changes": { C: OffChanges, roles: OFF }, business: { C: BusinessRoute, roles: OFF, title: t("Business file", "Faili la biashara") },
   "rating-check": { C: RatingCheck, roles: ["officer"], title: t("Monthly records check", "Ukaguzi wa kumbukumbu wa mwezi") },
   approvals: { C: Approvals, roles: DA }, ledger: { C: Ledger, roles: DA }, "rating-review": { C: RatingReview, roles: DA }, "admin-queries": { C: Queries, roles: DA }, "admin-loans": { C: AdminLoans, roles: DA },

@@ -18,7 +18,8 @@ export function findDuplicate(state, entry) {
   const payer = norm(entry.payer);
   const ref = norm(entry.reference);
   // A transaction reference (M-Pesa or bank code) is unique: the same one twice is a duplicate, payer or not (V11).
-  if (ref.length >= 4) {
+  // Only a real transaction code counts (it has digits): "cash" or "none" typed twice is not a duplicate (REC-H).
+  if (ref.length >= 4 && /\d/.test(ref)) {
     const same = (state.entries || []).find((e) => e.businessId === entry.businessId && e.id !== entry.id && e.status !== "declined" && !e.contra && !e.reversedBy && norm(e.reference) === ref);
     if (same) return same;
   }

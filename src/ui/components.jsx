@@ -45,12 +45,13 @@ export function Field({ label, hint, children, className = "" }) {
   );
 }
 
-export function Text({ value, onChange, ...rest }) {
-  return <input className="input" value={value ?? ""} onChange={(e) => onChange(e.target.value)} {...rest} />;
+// Every free-text box has a length limit (9 Nov, GEN-A); a field may set a tighter one.
+export function Text({ value, onChange, maxLength = 200, ...rest }) {
+  return <input className="input" value={value ?? ""} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} {...rest} />;
 }
 
-export function Area({ value, onChange, ...rest }) {
-  return <textarea className="input" value={value ?? ""} onChange={(e) => onChange(e.target.value)} {...rest} />;
+export function Area({ value, onChange, maxLength = 1000, ...rest }) {
+  return <textarea className="input" value={value ?? ""} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} {...rest} />;
 }
 
 // Date picker (agreed 29 Oct): year first, then month (1 to 12), then only the days that exist in that
@@ -111,7 +112,7 @@ export function AmountInput({ value, onChange, big, placeholder = "0", allowNega
       placeholder={placeholder}
       value={shown}
       onChange={(e) => {
-        const raw = e.target.value.replace(/[^\d-]/g, "");
+        const raw = e.target.value.replace(/[^\d-]/g, "").slice(0, 12); // never more than TZS 10 billion (REC-F)
         if (raw === "" || raw === "-") return onChange("");
         const n = Number(allowNegative ? raw : raw.replace(/-/g, ""));
         onChange(Number.isFinite(n) ? n : "");
@@ -270,7 +271,7 @@ export function StatusPill({ status }) {
     disbursed: ["green", L("Disbursed", "Imetolewa")], repaid: ["green", L("Repaid", "Imelipwa yote")], quoted: ["orange", L("Quoted", "Nukuu imetolewa")], ordered: ["orange", L("Ordered", "Imeagizwa")],
     invoiced: ["orange", L("Invoiced", "Ankara imetolewa")], delivered: ["green", L("Delivered", "Imefikishwa")], received: ["green", L("Received", "Imepokelewa")], paid: ["green", L("Paid", "Imelipwa")],
     open: ["orange", L("Open", "Wazi")], answered: ["green", L("Answered", "Imejibiwa")], reviewed: ["green", L("Reviewed", "Imekaguliwa")], active: ["green", L("Active", "Hai")],
-    verified: ["green", L("Verified", "Imehakikiwa")],
+    verified: ["green", L("Verified", "Imehakikiwa")], withdrawn: ["grey", L("Withdrawn", "Imeondolewa")], expired: ["grey", L("Expired", "Muda umeisha")],
     final: ["green", L("Final", "Ya mwisho")], disputed: ["orange", L("Under review", "Inapitiwa")], success: ["green", L("Paid", "Imelipwa")], failed: ["red", L("Failed", "Imeshindikana")]
   };
   const [tone, label] = map[status] || ["grey", status];

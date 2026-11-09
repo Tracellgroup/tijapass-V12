@@ -25,14 +25,14 @@ export function world() {
   createBusiness(d, null, {
     id: "B1", userId: "UB1", pin: "4826", phoneVerified: true,
     profile: {
-      businessName: "Neema Shop", legalForm: "sole", sector: "produce", region: "Dar es Salaam", gps: { lat: -6.8, lng: 39.28 }, monthsOperating: 24,
+      businessName: "Neema Shop", legalForm: "sole", businessType: "shop", sector: "produce", region: "Dar es Salaam", address: "Kariakoo market, stall 12", gps: { lat: -6.8, lng: 39.28 }, monthsOperating: 24,
       owners: [{ id: "O1", name: "Neema Juma Mushi", phone: "+255712345678", nida: "19940512111110000121", dob: "1994-05-12", gender: "female", sharePct: 100, role: "owner", main: true, photoId: "p", idPhotoId: "i" }]
     },
     channels: [{ id: "C1", type: "cash", name: "Cash" }, { id: "C2", type: "mobile", name: "M-Pesa" }],
     baseline: { bank: "none", mobile: "personal", borrowed: "never", sources: ["vicoba"], needFinance: "no" }
   });
   assignOfficer(d, ADMIN, "B1", "U-OFF1", "Same region");
-  saveOpening(d, BIZ, "B1", { channels: { C1: 50000, C2: 20000 }, inventory: 300000 }, true);
+  saveOpening(d, BIZ, "B1", { channels: { C1: 50000, C2: 20000 }, inventory: 300000, receivables: 30000, equipment: 0, groupSavings: 0, payables: 0, loansShort: 0, loansLong: 0, groupLoans: 0 }, true);
   decideOpening(d, ADMIN, "B1", true, "Checked");
   return d;
 }
@@ -55,10 +55,13 @@ test("daily close: a guided reason creates its entry and the rest goes to cash d
 test("held entry: Admin decline keeps it out of the books; reversal balances", () => {
   const d = world();
   const t = today(d);
-  const ev = addEntry(d, BIZ, entry({ id: "BIG", date: t, kind: "rent", amount: 999000, channelId: "C2" }));
+  // 9 Nov (D1): paying out more than the account holds is refused outright, not held.
+  assert.throws(() => addEntry(d, BIZ, entry({ id: "BIG", date: t, kind: "rent", amount: 999000, channelId: "C2" })), /only TZS 20,000 available/);
+  addEntry(d, BIZ, entry({ id: "R1", date: t, kind: "sale_cash", amount: 4000, reference: "MPX12345" }));
+  const ev = addEntry(d, BIZ, entry({ id: "BIG", date: t, kind: "sale_cash", amount: 4000, reference: "MPX12345" }));
   assert.equal(ev.action, "hold");
-  assert.deepEqual(ev.reasons, ["overdraw"]);
-  decideHeld(d, ADMIN, "BIG", "decline", { reason: "Wrong account" });
+  assert.deepEqual(ev.reasons, ["duplicate"]);
+  decideHeld(d, ADMIN, "BIG", "decline", { reason: "Entered twice" });
   assert.equal(d.entries.find((e) => e.id === "BIG").status, "declined");
   addEntry(d, BIZ, entry({ id: "S1", date: t, amount: 7000 }));
   const before = balanceSheet(d, "B1", t).totalAssets;
@@ -151,7 +154,7 @@ test("accountant review: an uncertain material entry posts at once, then is conf
   assert.equal(get("EC").review, undefined, "below the review floor");
   reviewPosted(d, ADMIN, "EA", "change", { kind: "drawings", reason: "Owner confirmed this was school fees" });
   assert.equal(get("EA").reversedBy !== undefined, true);
-  assert.ok(d.entries.some((e) => e.correctionOf === "EA" && e.kind === "drawings" && e.evidence === "supported"));
+  assert.ok(d.entries.some((e) => e.correctionOf === "EA" && e.kind === "drawings" && e.evidence === get("EA").evidence), "a correction keeps the original evidence level (9 Nov)");
   reviewPosted(d, ADMIN, "EB", "confirm", { reason: "Matches the M-Pesa message" });
   assert.equal(get("EB").review.status, "confirmed");
   assert.ok(d.audit.some((a) => a.action === "Entry treatment changed") && d.audit.some((a) => a.action === "Posted entry confirmed by accountant"));
@@ -196,10 +199,10 @@ test("FI services: disbursement and collection fees appear only when switched on
 test("packages: a failed payment never unlocks; a repeated confirmation never charges twice", () => {
   const d = world();
   const b = biz(d);
-  assert.equal(payPackage(d, OFF, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "failed", reference: "R1" }), "failed");
+  assert.equal(payPackage(d, BIZ, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "failed", reference: "R1" }), "failed");
   assert.equal(activePackage(d, b, today(d)), "basic");
-  assert.equal(payPackage(d, OFF, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "success", reference: "R2" }), "success");
-  assert.equal(payPackage(d, OFF, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "success", reference: "R2" }), "duplicate");
+  assert.equal(payPackage(d, BIZ, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "success", reference: "R2" }), "success");
+  assert.equal(payPackage(d, BIZ, { ownerId: "B1", packageId: "week", method: "mobile", outcome: "success", reference: "R2" }), "duplicate");
   assert.equal(d.payments.filter((p) => p.status === "success").length, 1);
   assert.equal(activePackage(d, b, today(d)), "week");
   assert.equal(activePackage(d, b, addDays(today(d), 7)), "basic");
@@ -207,7 +210,9 @@ test("packages: a failed payment never unlocks; a repeated confirmation never ch
 
 test("assessments: billed once per FI per business per day", () => {
   const d = world();
-  const fi = { id: "U-FI1", name: "FI", role: "fi" };
+  const fi = { id: "U-FI1", name: "FI", role: "fi", orgId: "FI-1" };
+  assert.throws(() => logAssessment(d, fi, "FI-1", "B1"), /not given you consent/);
+  biz(d).consent.fis = { "FI-1": { granted: true } };
   assert.equal(logAssessment(d, fi, "FI-1", "B1"), true);
   assert.equal(logAssessment(d, fi, "FI-1", "B1"), false);
   assert.equal(d.assessments.length, 1);

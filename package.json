@@ -1,7 +1,7 @@
 {
   "name": "tijapass-v12",
   "private": true,
-  "version": "10.0.0",
+  "version": "12.0.0",
   "type": "module",
   "description": "TijaPass V12 web MVP: MSME records, daily close, Records Rating, credit passport and BOT reports (dummy data only)",
   "scripts": {

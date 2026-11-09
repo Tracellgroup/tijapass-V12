@@ -5,7 +5,8 @@ import { annualFromMonthly, canAssignTier, sponsorCounts } from "../../core/bill
 import { DEFAULT_SETTINGS } from "../../core/seed.js";
 import { money, today, uid } from "../../core/util.js";
 import { buildTestData, loadTestData, removeTestData } from "../../lib/testData.js";
-import { approveStaff, audit, generateSampleActivity, proposeRoleChange, proposeStaff } from "../../lib/actions.js";
+import { approveStaff, audit, decideConfig, generateSampleActivity, proposeConfig, proposeRoleChange, proposeStaff, settingsProblems } from "../../lib/actions.js";
+import { validEmail } from "../../core/people.js";
 import { ROLE_NAMES } from "../../lib/access.js";
 import { clearFiles } from "../../lib/files.js";
 import { L, tl } from "../../lib/i18n.js";
@@ -23,7 +24,7 @@ export function Users() {
   const [modal, setModal] = useState(null);
   const [role, setRole] = useState("");
   const staff = state.users.filter((u) => STAFF_ROLES.includes(u.role) || ["fi", "supplier"].includes(u.role));
-  const ok = f.name.trim().length > 2 && /@/.test(f.login) && f.password.length >= 8 && !state.users.some((u) => u.login === f.login.trim().toLowerCase());
+  const ok = f.name.trim().length > 2 && validEmail(f.login) && f.password.length >= 8 && !state.users.some((u) => String(u.login).toLowerCase() === f.login.trim().toLowerCase());
   const waiting = state.users.filter((u) => u.status === "pending" || u.pendingRole);
   const canApprove = (u) => u.proposedBy?.id !== user.id && u.id !== user.id && !(u.approvals || []).some((a) => a.id === user.id) && (user.role === "super" || (user.role === "systemAdmin" && (u.approvals || []).length > 0));
   return (
@@ -87,11 +88,13 @@ export function AdminPackages() {
   const [tierFor, setTierFor] = useState(null);
   const [tier, setTier] = useState("");
   const counts = sponsorCounts(state);
-  const save = () => act((d) => { const { fees, ...packages } = pk; const before = { packages: d.packages, fees: d.settings.fiFees }; for (const p of packages.fi) p.annual = annualFromMonthly(p.monthly); d.packages = packages; d.settings.fiFees = fees; audit(d, user, "Packages and prices changed", "packages", { before, after: pk, reason }); }, L("Prices saved", "Bei zimehifadhiwa"));
+  // Prices change only after a Super user approves (decided 9 Nov, D6).
+  const save = () => act((d) => { const v = structuredClone(pk); for (const p of v.fi) p.annual = annualFromMonthly(p.monthly); proposeConfig(d, user, "prices", v, reason.trim()); }, L("Sent to a Super user for approval", "Imetumwa kwa Mtumiaji mkuu kuidhinisha"));
   const setBiz = (i, k, v) => setPk({ ...pk, business: pk.business.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   const setFi = (i, k, v) => setPk({ ...pk, fi: pk.fi.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   return (
     <div className="stack">
+      <PendingConfig kind="prices" />
       <Card title={L("Business packages", "Vifurushi vya biashara")}>
         <p className="small muted mb">{L("Seen only by businesses. Recording is always free on Basic.", "Vinaonekana na biashara tu. Kuandika ni bure daima kwenye Msingi.")}</p>
         {pk.business.map((p, i) => (
@@ -129,7 +132,7 @@ export function AdminPackages() {
       </Card>
       <Card>
         <Field label={L("Reason for the price change", "Sababu ya mabadiliko ya bei")}><Text value={reason} onChange={setReason} /></Field>
-        <button className="btn primary mt" disabled={reason.trim().length < 5} onClick={save}>{L("Save prices", "Hifadhi bei")}</button>
+        <button className="btn primary mt" disabled={reason.trim().length < 5} onClick={save}>{L("Send prices for approval", "Tuma bei kwa idhini")}</button>
       </Card>
       {tierFor && (
         <ReasonModal title={`${L("Sponsorship tier", "Ngazi ya udhamini")}: ${tierFor.name}`} onClose={() => setTierFor(null)} onSubmit={(r) => { if (!canAssignTier(state, tierFor, tier)) { act(() => { throw new Error(L("That tier is full.", "Ngazi hiyo imejaa.")); }); return false; } return act((d) => { const f = d.fis.find((x) => x.id === tierFor.id); const before = f.sponsorTier; f.sponsorTier = tier; audit(d, user, "Sponsorship tier changed", f.id, { before, after: tier, reason: r }); }, L("Saved", "Imehifadhiwa")); }}>
@@ -153,14 +156,44 @@ const SETTING_FIELDS = [
   ["youthMaxAge", "Youth: age up to", "Vijana: umri hadi"], ["qualifyScore", "Qualifying credit score", "Alama ya kufuzu mkopo"], ["cashBuffer", "Cash buffer (0–1)", "Akiba ya pesa (0–1)"], ["quarterlyDays", "Quarterly questions every (days)", "Maswali ya robo mwaka kila (siku)"]
 ];
 
+// A settings or price change waiting for a Super user (D6). The proposer cannot approve it.
+function PendingConfig({ kind }) {
+  const { state, user } = useStore();
+  const act = useAction();
+  const [modal, setModal] = useState(null);
+  const c = (state.pendingConfig || []).find((x) => x.kind === kind);
+  if (!c) return null;
+  const changed = kind === "settings"
+    ? Object.keys(c.value).filter((k) => JSON.stringify(c.value[k]) !== JSON.stringify(state.settings[k]))
+    : ["business", "fi", "sponsorTiers", "fees"].filter((k) => JSON.stringify(c.value[k]) !== JSON.stringify(k === "fees" ? state.settings.fiFees : state.packages[k]));
+  const mayDecide = user.role === "super" && c.by?.id !== user.id;
+  return (
+    <Card title={kind === "settings" ? L("Settings change waiting for approval", "Mabadiliko ya mipangilio yanasubiri idhini") : L("Price change waiting for approval", "Mabadiliko ya bei yanasubiri idhini")}>
+      <p className="small">{L("Proposed by", "Imependekezwa na")} <b>{c.by?.name}</b> · {fmtDateTime(c.at)} · {c.reason}</p>
+      <p className="small muted mt">{L("Changes", "Mabadiliko")}: {changed.length ? changed.join(", ") : L("none", "hakuna")}</p>
+      {mayDecide ? (
+        <div className="row mt">
+          <button className="btn" onClick={() => setModal(false)}>{L("Decline", "Kataa")}</button>
+          <button className="btn primary" onClick={() => setModal(true)}>{L("Approve", "Idhinisha")}</button>
+        </div>
+      ) : <p className="tiny muted mt">{L("A different Super user approves this.", "Mtumiaji mkuu mwingine anaidhinisha hili.")}</p>}
+      {modal !== null && <ReasonModal title={modal ? L("Approve the change", "Idhinisha mabadiliko") : L("Decline the change", "Kataa mabadiliko")} danger={!modal} onClose={() => setModal(null)} onSubmit={(r) => act((d) => decideConfig(d, user, c.id, modal, r), modal ? L("Approved and applied", "Imeidhinishwa na kutumika") : L("Declined", "Imekataliwa"))} />}
+    </Card>
+  );
+}
+
 export function Settings() {
   const { state, user } = useStore();
   const act = useAction();
   const [s, setS] = useState(() => structuredClone(state.settings));
+  const [reason, setReason] = useState("");
   const num = (k, v) => setS({ ...s, [k]: v === "" ? "" : Number(v) });
-  const save = () => act((d) => { const before = d.settings; d.settings = { ...s }; audit(d, user, "Settings changed", "settings", { before, after: s }); }, L("Settings saved", "Mipangilio imehifadhiwa"));
+  const problems = settingsProblems(s);
+  // Settings change only after a Super user approves (decided 9 Nov, D6).
+  const save = () => act((d) => proposeConfig(d, user, "settings", s, reason.trim()), L("Sent to a Super user for approval", "Imetumwa kwa Mtumiaji mkuu kuidhinisha"));
   return (
     <div className="stack">
+      <PendingConfig kind="settings" />
       <Card title={L("Rules", "Kanuni")}>
         <div className="form two">
           {SETTING_FIELDS.map(([k, en, sw]) => <Field key={k} label={L(en, sw)}><input className="input" inputMode="decimal" value={s[k] ?? ""} onChange={(e) => num(k, e.target.value.replace(/[^\d.]/g, ""))} /></Field>)}
@@ -186,7 +219,11 @@ export function Settings() {
           <Field label={L("Hours", "Saa")}><Text value={s.support.hours} onChange={(v) => setS({ ...s, support: { ...s.support, hours: v } })} /></Field>
         </div>
       </Card>
-      <button className="btn primary" onClick={save}>{L("Save settings", "Hifadhi mipangilio")}</button>
+      <Card>
+        {problems.length > 0 && <p className="notice bad mb">{L("Check", "Hakiki")}: {problems.join("; ")}.</p>}
+        <Field label={L("Reason for the change (required)", "Sababu ya mabadiliko (lazima)")}><Text value={reason} maxLength={300} onChange={setReason} /></Field>
+        <button className="btn primary mt" disabled={problems.length > 0 || reason.trim().length < 5} onClick={save}>{L("Send settings for approval", "Tuma mipangilio kwa idhini")}</button>
+      </Card>
       <TestTools />
     </div>
   );
@@ -258,7 +295,14 @@ export function ReportDesign() {
       <p className="small muted mb">{L("Report users only ever see totals and shares for groups of businesses.", "Watumiaji wa ripoti wanaona jumla na sehemu za makundi ya biashara tu.")}</p>
       <div className="stack">{TILES.map(([k, label]) => <label key={k} className="check"><input type="checkbox" checked={tiles[k] !== false} onChange={(e) => setTiles({ ...tiles, [k]: e.target.checked })} />{label}</label>)}</div>
       <Field label={L("Minimum group size (smaller groups hidden)", "Ukubwa wa chini wa kundi (madogo yanafichwa)")} className="mt"><Text value={min} onChange={(v) => setMin(v.replace(/\D/g, ""))} inputMode="numeric" /></Field>
-      <button className="btn primary mt" onClick={() => act((d) => { const before = { tiles: d.settings.reportTiles, min: d.settings.minGroupSize }; d.settings.reportTiles = tiles; d.settings.minGroupSize = Math.max(1, Number(min) || 1); audit(d, user, "Report design changed", "reports", { before, after: { tiles, min } }); }, L("Saved", "Imehifadhiwa"))}>{L("Save", "Hifadhi")}</button>
+      <button className="btn primary mt" onClick={() => act((d) => {
+        // Which tiles show is design and applies at once; the privacy minimum is a setting and needs a Super user (D6).
+        const before = { tiles: d.settings.reportTiles };
+        d.settings.reportTiles = tiles;
+        audit(d, user, "Report design changed", "reports", { before, after: { tiles } });
+        const m = Math.max(1, Number(min) || 1);
+        if (m !== d.settings.minGroupSize) proposeConfig(d, user, "settings", { ...d.settings, minGroupSize: m }, `Report design: minimum group size ${d.settings.minGroupSize} → ${m}`);
+      }, Number(min) !== state.settings.minGroupSize ? L("Saved. The new minimum group size waits for a Super user.", "Imehifadhiwa. Ukubwa mpya wa kundi unasubiri Mtumiaji mkuu.") : L("Saved", "Imehifadhiwa"))}>{L("Save", "Hifadhi")}</button>
     </Card>
   );
 }

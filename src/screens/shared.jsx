@@ -328,7 +328,7 @@ export function QuoteRequests({ requester }) {
   const sup = sups.find((s) => s.id === supplierId);
   const prod = sup?.products.find((p) => p.id === productId);
   const mine = state.quoteRequests.filter((q) => q.requester.type === requester.type && q.requester.id === requester.id);
-  const ok = supplierId && (prod || item.trim().length > 2) && Number(qty) > 0;
+  const ok = supplierId && (prod || item.trim().length > 2) && Number(qty) > 0 && Number(qty) <= 10000;
   const self = requester.type === "business" ? { businessId: requester.id } : { fiId: requester.id };
   return (
     <div className="stack">
@@ -337,7 +337,7 @@ export function QuoteRequests({ requester }) {
           <Field label={L("Supplier", "Msambazaji")}><Select value={supplierId} onChange={(v) => { setSupplierId(v); setProductId(""); }} options={sups.map((s) => ({ value: s.id, label: `${s.name} · ${s.region}` }))} /></Field>
           <Field label={L("From their list", "Kutoka orodha yao")}><Select value={productId} onChange={setProductId} placeholder={L("Or describe below", "Au eleza hapa chini")} options={(sup?.products || []).map((p) => ({ value: p.id, label: `${p.name} · ${money(p.price)}` }))} /></Field>
           {!prod && <Field label={L("Describe the item", "Eleza bidhaa")}><Area value={item} onChange={setItem} rows={2} /><VoiceButton onText={(t) => setItem((x) => `${x} ${t}`.trim())} /></Field>}
-          <Field label={L("Quantity", "Idadi")}><Text value={qty} onChange={(v) => setQty(v.replace(/\D/g, ""))} inputMode="numeric" /></Field>
+          <Field label={L("Quantity (1–10,000)", "Idadi (1–10,000)")}><Text value={qty} maxLength={5} onChange={(v) => setQty(v.replace(/\D/g, ""))} inputMode="numeric" /></Field>
           <Field label={L("Note (optional)", "Maelezo (si lazima)")}><Text value={note} onChange={setNote} /></Field>
         </div>
         <button className="btn primary mt" disabled={!ok} onClick={() => { act((d) => requestQuote(d, user, { id: uid("QR"), supplierId, productId: prod?.id || null, item: prod ? prod.name : item.trim(), qty: Number(qty), note: note.trim(), requester }), L("Request sent", "Ombi limetumwa")); setItem(""); setNote(""); setProductId(""); }}>{L("Send request", "Tuma ombi")}</button>
@@ -357,7 +357,7 @@ export function QuoteRequests({ requester }) {
               </div>
             )}
             <div className="row mt">
-              {q.status === "quoted" && <><button className="btn" onClick={() => act((d) => quoteStep(d, user, q.id, "declined"))}>{L("Decline", "Kataa")}</button><button className="btn primary" onClick={() => act((d) => quoteStep(d, user, q.id, "accepted"), L("Quote accepted", "Nukuu imekubaliwa"))}>{L("Accept quote", "Kubali nukuu")}</button></>}
+              {q.status === "quoted" && <><button className="btn" onClick={() => act((d) => quoteStep(d, user, q.id, "declined"))}>{L("Decline", "Kataa")}</button>{q.quote?.validUntil && q.quote.validUntil < today(state) ? <span className="small muted">{L("This quote has expired. Ask for a new one.", "Nukuu hii imeisha muda. Omba mpya.")}</span> : <button className="btn primary" onClick={() => act((d) => quoteStep(d, user, q.id, "accepted"), L("Quote accepted", "Nukuu imekubaliwa"))}>{L("Accept quote", "Kubali nukuu")}</button>}</>}
               {q.status === "invoiced" && !state.loans.some((l) => l.quoteId === q.id) && <button className="btn" onClick={() => act((d) => quoteStep(d, user, q.id, "paid", { paidDirect: true }), L("Marked as paid. Record the payment under Record.", "Imewekwa kama imelipwa. Andika malipo kwenye Andika."))}>{L("I paid the supplier", "Nimemlipa msambazaji")}</button>}
               {q.status === "delivered" && <button className="btn primary" onClick={() => act((d) => quoteStep(d, user, q.id, "received"), L("Thank you", "Asante"))}>{L("I received the goods", "Nimepokea bidhaa")}</button>}
             </div>

@@ -67,8 +67,8 @@ export function RatingCheck() {
   if (!b || !canSeeBusiness(state, user, b.id)) return <Empty text={L("This business is not assigned to you.", "Biashara hii haijapangiwa kwako.")} />;
 
   const book = bookFigures(state, b, visit.date);
-  const countedTotal = b.channels.reduce((t, c) => t + (Number(counts[c.id]) || 0), 0);
-  const allCounted = b.channels.every((c) => counts[c.id] !== undefined && counts[c.id] !== "");
+  const countedTotal = b.channels.filter((c) => !c.archived).reduce((t, c) => t + (Number(counts[c.id]) || 0), 0);
+  const allCounted = b.channels.filter((c) => !c.archived).every((c) => counts[c.id] !== undefined && counts[c.id] !== "");
   const ev = evidence.slice(0, sampled);
   const found = ev.filter((x) => x.found === true).length;
   const sample = sampleIds.map((id) => state.entries.find((e) => e.id === id)).filter(Boolean);
@@ -136,7 +136,7 @@ export function RatingCheck() {
         {s === "cash" && (
           <div className="form">
             <p className="muted">{L("Count the cash with the owner, then look at each wallet and bank balance on the owner's phone.", "Hesabu taslimu pamoja na mmiliki, kisha angalia salio la kila pochi na benki kwenye simu ya mmiliki.")}</p>
-            {b.channels.map((c) => <Field key={c.id} label={c.name}><AmountInput value={counts[c.id] ?? ""} onChange={(v) => setCounts({ ...counts, [c.id]: v })} /></Field>)}
+            {b.channels.filter((c) => !c.archived).map((c) => <Field key={c.id} label={`${c.name} (TZS)`}><AmountInput value={counts[c.id] ?? ""} onChange={(v) => setCounts({ ...counts, [c.id]: v })} /></Field>)}
             <PhotoInput label={L("Photo of the cash count", "Picha ya hesabu ya pesa")} required value={cashPhoto} onChange={setCashPhoto} />
             {allCounted && <div className="kv"><span>{L("Counted", "Iliyohesabiwa")}</span><span>{money(countedTotal)}</span><span>{L("Books", "Vitabu")}</span><span>{money(book.cash)}</span><span>{L("Points", "Alama")}</span><span>{points.cash} / 25</span></div>}
           </div>
@@ -183,8 +183,8 @@ export function RatingCheck() {
         )}
         {s === "stock" && (
           <div className="form two">
-            <Field label={L("Estimated value of stock seen", "Thamani ya makadirio ya stoku iliyoonekana")} hint={`${L("Books", "Vitabu")}: ${money(book.inventory)}`}><AmountInput value={stockEst} onChange={setStockEst} /></Field>
-            <Field label={L("Estimated value of main equipment", "Thamani ya makadirio ya vifaa vikuu")} hint={`${L("Books", "Vitabu")}: ${money(book.equipment)}`}><AmountInput value={equipEst} onChange={setEquipEst} /></Field>
+            <Field label={L("Estimated value of stock seen (TZS)", "Thamani ya makadirio ya stoku iliyoonekana (TZS)")} hint={`${L("Books", "Vitabu")}: ${money(book.inventory)}`}><AmountInput value={stockEst} onChange={setStockEst} /></Field>
+            <Field label={L("Estimated value of main equipment (TZS)", "Thamani ya makadirio ya vifaa vikuu (TZS)")} hint={`${L("Books", "Vitabu")}: ${money(book.equipment)}`}><AmountInput value={equipEst} onChange={setEquipEst} /></Field>
             <PhotoInput label={L("Photo of stock and equipment", "Picha ya stoku na vifaa")} required value={stockPhoto} onChange={setStockPhoto} />
             <p className="small">{L("Points", "Alama")}: <b>{points.stock} / 15</b></p>
           </div>

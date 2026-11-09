@@ -7,7 +7,7 @@ import { ageGroup as kpiAge } from "../../core/kpi.js";
 import { bandFor, latestRating } from "../../core/rating.js";
 import { REGIONS, SECTORS } from "../../core/seed.js";
 import { addDays, money, monthKey, startOfMonth, sum, today, uid } from "../../core/util.js";
-import { audit, disburse, logAssessment, makeOffer, rejectLoan, setFiPackage } from "../../lib/actions.js";
+import { disburse, logAssessment, makeOffer, rejectLoan, saveProduct, setFiPackage } from "../../lib/actions.js";
 import { businessesInScope, myOrg } from "../../lib/access.js";
 import { L, tl } from "../../lib/i18n.js";
 import { useAction, useStore } from "../../lib/store.jsx";
@@ -222,7 +222,7 @@ export function FiLoan() {
             <Field label={L("Product", "Bidhaa")}><Select value={productId} onChange={setProductId} options={products.map((p) => ({ value: p.id, label: `${p.name} · ${p.annualRate}%` }))} /></Field>
             <Field label={L("Amount (TZS)", "Kiasi (TZS)")} hint={product ? `${money(product.min)} – ${money(product.max)}` : null}><AmountInput value={principal} onChange={setPrincipal} /></Field>
             <Field label={L("Repayment", "Marejesho")}><Chips value={frequency} onChange={setFrequency} options={(product?.frequencies || []).map((k) => ({ value: k, label: tl(FREQUENCIES[k]) }))} /></Field>
-            <Field label={`${L("Instalments", "Idadi ya marejesho")} (${L("max", "juu")} ${maxN})`}><Text value={n} onChange={(v) => setN(v.replace(/\D/g, ""))} inputMode="numeric" /></Field>
+            <Field label={`${L("Instalments", "Idadi ya marejesho")} (${L("max", "juu")} ${maxN})`} hint={Number(n) > maxN ? <span className="amber">{L(`At most ${maxN} here: the offer uses ${maxN}.`, `Zaidi ni ${maxN} hapa: ofa inatumia ${maxN}.`)}</span> : null}><Text value={n} maxLength={2} onChange={(v) => setN(v.replace(/\D/g, ""))} inputMode="numeric" /></Field>
           </div>
           {preview && (
             <div className="stack mt">
@@ -258,13 +258,14 @@ export function Products() {
   const act = useAction();
   const fi = myOrg(state, user);
   const [edit, setEdit] = useState(null);
-  const save = () => act((d) => {
-    const f = d.fis.find((x) => x.id === fi.id);
-    const p = { ...edit, annualRate: Number(edit.annualRate) || 0, feePct: Number(edit.feePct) || 0, feeFixed: Number(edit.feeFixed) || 0, min: Number(edit.min) || 0, max: Number(edit.max) || 0, maxInstalments: Number(edit.maxInstalments) || 1 };
-    if (p.id) f.products = f.products.map((x) => (x.id === p.id ? p : x));
-    else f.products.push({ ...p, id: uid("P") });
-    audit(d, user, "Loan product saved", fi.id, { after: p });
-  }, L("Product saved", "Bidhaa imehifadhiwa")) && setEdit(null);
+  // Saved through the rules (9 Nov, FIN-F): sensible rates, fees, amounts and instalments only.
+  const rate = Number(edit?.annualRate);
+  const problem = !edit ? null : !/^\d+(\.\d+)?$/.test(String(edit.annualRate)) || rate > 100 ? L("Interest rate: a number from 0 to 100.", "Riba: namba kati ya 0 na 100.")
+    : !/^\d+(\.\d+)?$/.test(String(edit.feePct)) || Number(edit.feePct) > 20 ? L("Fee: a number from 0 to 20 (% of the amount).", "Ada: namba kati ya 0 na 20 (% ya kiasi).")
+      : Number(edit.min) < 10000 ? L("The smallest amount must be at least TZS 10,000.", "Kiasi kidogo kiwe angalau TZS 10,000.")
+        : Number(edit.max) < Number(edit.min) ? L("The largest amount cannot be below the smallest.", "Kiasi kikubwa hakiwezi kuwa chini ya kidogo.")
+          : !(Number(edit.maxInstalments) >= 1 && Number(edit.maxInstalments) <= 60) ? L("Instalments: 1 to 60.", "Marejesho: 1 hadi 60.") : null;
+  const save = () => act((d) => saveProduct(d, user, fi.id, { ...edit, annualRate: Number(edit.annualRate), feePct: Number(edit.feePct), feeFixed: Number(edit.feeFixed) || 0, min: Number(edit.min) || 0, max: Number(edit.max) || 0, maxInstalments: Number(edit.maxInstalments) || 0 }), L("Product saved", "Bidhaa imehifadhiwa")) && setEdit(null);
   return (
     <div className="stack">
       <Card title={L("Loan products", "Bidhaa za mikopo")} actions={<button className="btn small primary" onClick={() => setEdit(emptyProduct())}><Plus size={16} />{L("New product", "Bidhaa mpya")}</button>}>
@@ -280,13 +281,14 @@ export function Products() {
             <Field label={L("Interest rate (% a year)", "Riba (% kwa mwaka)")}><Text value={String(edit.annualRate)} onChange={(v) => setEdit({ ...edit, annualRate: v.replace(/[^\d.]/g, "") })} inputMode="decimal" /></Field>
             <Field label={L("Fee (% of amount)", "Ada (% ya kiasi)")}><Text value={String(edit.feePct)} onChange={(v) => setEdit({ ...edit, feePct: v.replace(/[^\d.]/g, "") })} inputMode="decimal" /></Field>
             <Field label={L("Fixed fee (TZS)", "Ada ya kudumu (TZS)")}><AmountInput value={edit.feeFixed} onChange={(v) => setEdit({ ...edit, feeFixed: v })} /></Field>
-            <Field label={L("Most instalments", "Marejesho mengi zaidi")}><Text value={String(edit.maxInstalments)} onChange={(v) => setEdit({ ...edit, maxInstalments: v.replace(/\D/g, "") })} inputMode="numeric" /></Field>
-            <Field label={L("Smallest amount", "Kiasi kidogo")}><AmountInput value={edit.min} onChange={(v) => setEdit({ ...edit, min: v })} /></Field>
-            <Field label={L("Largest amount", "Kiasi kikubwa")}><AmountInput value={edit.max} onChange={(v) => setEdit({ ...edit, max: v })} /></Field>
+            <Field label={L("Most instalments (1–60)", "Marejesho mengi zaidi (1–60)")}><Text value={String(edit.maxInstalments)} maxLength={2} onChange={(v) => setEdit({ ...edit, maxInstalments: v.replace(/\D/g, "") })} inputMode="numeric" /></Field>
+            <Field label={L("Smallest amount (TZS)", "Kiasi kidogo (TZS)")}><AmountInput value={edit.min} onChange={(v) => setEdit({ ...edit, min: v })} /></Field>
+            <Field label={L("Largest amount (TZS)", "Kiasi kikubwa (TZS)")}><AmountInput value={edit.max} onChange={(v) => setEdit({ ...edit, max: v })} /></Field>
             <Field label={L("Repayment frequencies", "Marudio ya marejesho")}><Chips multi value={edit.frequencies} onChange={(v) => setEdit({ ...edit, frequencies: v })} options={Object.keys(FREQUENCIES).map((k) => ({ value: k, label: tl(FREQUENCIES[k]) }))} /></Field>
             <label className="check"><input type="checkbox" checked={edit.active} onChange={(e) => setEdit({ ...edit, active: e.target.checked })} />{L("Offered to businesses", "Inatolewa kwa biashara")}</label>
           </div>
-          <div className="row mt"><button className="btn" onClick={() => setEdit(null)}>{L("Cancel", "Ghairi")}</button><button className="btn primary" disabled={!edit.name.trim() || !edit.frequencies.length || Number(edit.max) < Number(edit.min)} onClick={save}>{L("Save", "Hifadhi")}</button></div>
+          {problem && <p className="small amber mt">{problem}</p>}
+          <div className="row mt"><button className="btn" onClick={() => setEdit(null)}>{L("Cancel", "Ghairi")}</button><button className="btn primary" disabled={edit.name.trim().length < 3 || !edit.frequencies.length || Boolean(problem)} onClick={save}>{L("Save", "Hifadhi")}</button></div>
         </Card>
       )}
     </div>

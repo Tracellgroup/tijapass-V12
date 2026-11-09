@@ -96,7 +96,7 @@ export const GATES = {
   overdue: { en: "No overdue TijaPass repayments", sw: "Hakuna marejesho ya TijaPass yaliyochelewa" },
   external: { en: "Declared outside loans verified by Admin", sw: "Mikopo ya nje iliyotajwa imethibitishwa na Msimamizi" },
   cash: { en: "Cash available for repayments after existing loans", sw: "Pesa ya kurejesha baada ya mikopo iliyopo" },
-  reconciled: { en: "Records reconciled: days closed, cash differences resolved, corrections done", sw: "Kumbukumbu zimelinganishwa: siku zimefungwa, tofauti zimetatuliwa, marekebisho yamefanyika" },
+  reconciled: { en: "Records reconciled: starting position verified by TijaPass, days closed, cash differences resolved, corrections done", sw: "Kumbukumbu zimelinganishwa: hali ya kuanzia imehakikiwa na TijaPass, siku zimefungwa, tofauti zimetatuliwa, marekebisho yamefanyika" },
   rating: { en: "Records Rating Good (70+) for automatic eligibility; Okay (50–69) needs the lender's own review", sw: "Kiwango Nzuri (70+) kwa ustahiki wa moja kwa moja; Wastani (50–69) unahitaji mapitio ya mkopeshaji" }
 };
 

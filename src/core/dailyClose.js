@@ -1,7 +1,7 @@
 // Daily close (DAY-01 to DAY-09).
 import { channelBalances } from "./accounting.js";
 import { flowOf } from "./kinds.js";
-import { addDays, dateRange, round, sum } from "./util.js";
+import { addDays, dateRange, round, sum, tzMoment } from "./util.js";
 
 // Guided reasons (DAY-06). Each creates its entry.
 export const REASONS = {
@@ -70,11 +70,9 @@ export function compareCounts(state, businessId, counts, asAt) {
 }
 
 // On time = closed on the same day, or before 09:00 the next morning.
+// Measured in Tanzania time whatever the phone's own zone (9 Nov, DAY-B).
 export function isOnTime(closeDate, closedAtISO) {
-  const closed = new Date(closedAtISO);
-  const [y, m, d] = closeDate.split("-").map(Number);
-  const deadline = new Date(y, m - 1, d + 1, 9, 0, 0);
-  return closed <= deadline;
+  return new Date(closedAtISO).getTime() <= tzMoment(addDays(closeDate, 1), 9, 0);
 }
 
 // Days closed on time within [from, to] (DAY-09, RAT-03 timeliness).

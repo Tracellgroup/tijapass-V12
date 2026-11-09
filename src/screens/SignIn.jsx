@@ -10,6 +10,7 @@ import { L, tl } from "../lib/i18n.js";
 import { useAction, useStore } from "../lib/store.jsx";
 import { Card, Field, Select, Tabs, Text } from "../ui/components.jsx";
 import { BusinessWizard, PhoneCode, normPhone, validPhone } from "./Onboard.jsx";
+import { validEmail } from "../core/people.js";
 
 // Forgotten PIN: a code to the registered phone, then a new 4-digit PIN (not possible while blocked).
 function ForgotPin({ onDone }) {
@@ -42,9 +43,14 @@ function ForgotPin({ onDone }) {
 
 function OrgForm({ kind, onDone }) {
   const act = useAction();
-  const [f, setF] = useState({ name: "", licence: "", region: "", address: "", phone: "", email: "", contactName: "", password: "", gps: null });
+  const [f, setF] = useState({ name: "", licence: "", region: "", address: "", phone: "", email: "", contactName: "", password: "", password2: "", gps: null });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const ok = f.name.trim() && f.licence.trim() && f.region && f.address.trim() && f.phone.trim() && /@/.test(f.email) && f.contactName.trim() && f.password.length >= 6;
+  // Same standard as staff accounts (9 Nov, ORG-C): a real phone and email, 8+ characters typed twice.
+  const problem = f.phone && !validPhone(f.phone) ? L("Enter a valid phone number, e.g. 0712 345 678.", "Andika namba sahihi ya simu, k.m. 0712 345 678.")
+    : f.email && !validEmail(f.email) ? L("Enter a valid email.", "Andika barua pepe sahihi.")
+      : f.password && f.password.length < 8 ? L("The password needs at least 8 characters.", "Nenosiri linahitaji herufi 8 au zaidi.")
+        : f.password2 && f.password2 !== f.password ? L("The two passwords are not the same.", "Manenosiri mawili hayafanani.") : null;
+  const ok = f.name.trim().length >= 3 && f.licence.trim().length >= 3 && f.region && f.address.trim() && validPhone(f.phone) && validEmail(f.email) && f.contactName.trim() && f.password.length >= 8 && f.password === f.password2;
   return (
     <Card title={kind === "fi" ? L("Register a financial institution", "Sajili taasisi ya fedha") : L("Register a supplier", "Sajili msambazaji")}>
       <div className="form two">
@@ -55,8 +61,10 @@ function OrgForm({ kind, onDone }) {
         <Field label={L("Phone *", "Simu *")}><Text value={f.phone} onChange={(v) => set("phone", v)} inputMode="tel" /></Field>
         <Field label={L("Contact person *", "Mtu wa mawasiliano *")}><Text value={f.contactName} onChange={(v) => set("contactName", v)} /></Field>
         <Field label={L("Sign-in email *", "Barua pepe ya kuingia *")}><Text value={f.email} onChange={(v) => set("email", v)} inputMode="email" /></Field>
-        <Field label={L("Password (6+ characters) *", "Nenosiri (herufi 6+) *")} hint={L("Test version: never use a real password.", "Toleo la majaribio: usitumie nenosiri halisi.")}><input type="password" className="input" value={f.password} onChange={(e) => set("password", e.target.value)} /></Field>
+        <Field label={L("Password (8+ characters) *", "Nenosiri (herufi 8+) *")} hint={L("Test version: never use a real password.", "Toleo la majaribio: usitumie nenosiri halisi.")}><input type="password" className="input" maxLength={64} value={f.password} onChange={(e) => set("password", e.target.value)} /></Field>
+        <Field label={L("Repeat the password *", "Rudia nenosiri *")}><input type="password" className="input" maxLength={64} value={f.password2} onChange={(e) => set("password2", e.target.value)} /></Field>
       </div>
+      {problem && <p className="small amber mt">{problem}</p>}
       <p className="small muted mt">{L("TijaPass Admin checks and approves new organisations before they can see or receive anything.", "TijaPass Admin hukagua na kuidhinisha taasisi mpya kabla hazijaona au kupokea chochote.")}</p>
       <button className="btn primary mt" disabled={!ok} onClick={() => act((d) => registerOrg(d, null, kind, { id: uid(kind === "fi" ? "FI" : "SUP"), name: f.name.trim(), licence: f.licence.trim(), region: f.region, address: f.address.trim(), phone: f.phone.trim(), email: f.email.trim().toLowerCase(), contactName: f.contactName.trim(), password: f.password }), L("Registered. Waiting for approval.", "Umesajiliwa. Inasubiri idhini.")) && onDone()}>
         {L("Register", "Sajili")}

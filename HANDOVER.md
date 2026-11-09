@@ -7,7 +7,7 @@ The web MVP is the **reference design** for the Stage 2 controlled live pilot (s
 | Item (spec tab 2, sign-off) | Where |
 |---|---|
 | V12 code with a README on how to run it and its tests | This repository; [README.md](README.md) |
-| Rule modules as plain JavaScript with their tests | `src/core/*.js` (no screen code) and `tests/*.test.js` (`npm test`, 62 tests) |
+| Rule modules as plain JavaScript with their tests | `src/core/*.js` (no screen code) and `tests/*.test.js` (`npm test`, 86 tests) |
 | Chart of accounts and ready-phrase mapping table | [docs/ACCOUNTING_MAP.md](docs/ACCOUNTING_MAP.md) (generated from `src/core/kinds.js`) |
 | All Kiswahili and English text in one translation file | [docs/translations.csv](docs/translations.csv) (`npm run extract-text`) |
 | AI instructions with sample inputs and expected outputs | [docs/AI_PROMPTS.md](docs/AI_PROMPTS.md); source `netlify/functions/ai/prompts.mjs` |
@@ -23,6 +23,7 @@ The web MVP is the **reference design** for the Stage 2 controlled live pilot (s
 | `posting.js` | Post or hold | `evaluateEntry`, `findDuplicate`, `isUnusual`, `wouldOverdraw` |
 | `dailyClose.js` | Daily close and catch-up | `unclosedPastDays`, `compareCounts`, `tolerance`, `isOnTime`, `shouldFlag`, `REASONS` |
 | `rating.js` | Records Rating | `scoreCash`, `scoreCompleteness`, `scoreCorrectness`, `scoreTimeliness`, `scoreStock`, `bandFor`, `riskOf`, `pickSample` (risk-based), `ratingStatus`, `nextDue`, `dueList`, `tips` |
+| `verify.js` | "To verify" list (10 Nov) | `verifyNeeds`, `verifySignals`, `SIGNALS`, `verifyQueue`: what each business still needs checked and in what order |
 | `people.js` | Identity and owners (29 Oct) | `pinProblem`, `PIN_LOCK`, `dobBounds`, `dobProblem`, `ageOn`, `validNida`, `ownersOf`, `mainOwner`, `syncProfile`, `ownershipGender`, `profileProblems`, `linkedBusinesses`, `isAdultMain` |
 | `credit.js` | Passport and lending | `isSupported`, `evidenceMix`, `score`, `GATES`, `gates`, `ratingGate`, `reconciliation`, `monthlyBase`, `affordability`, `maxInstalments`, `maxPrincipal`, `schedule`, `offerFits`, `linkedExposure` |
 | `billing.js` | Packages and FI billing | `assessmentFee`, `needsAssessment`, `fiBill`, `sponsorDiscountPct`, `canAssignTier`, `activePackage` |
@@ -71,9 +72,12 @@ Screenshots for every menu item are in `docs/guide-screenshots.zip` (English `-e
 13. **Owners (29 Oct)**: owners are 12 to 100; under 18 needs a guardian and cannot be the borrowing main owner (18 is the assumed age of majority; confirm with legal advice). Women-owned = women hold 51% or more of the shares.
 14. **Profile changes**: a new location within 2 km applies at once; further away waits for Data Admin. An account can be closed only at a zero balance.
 15. **Records Rating**: at most one per period, at least 25 days apart (setting); a business's first rating is always re-checked by someone other than the rater.
-16. **Duplicates**: a repeated transaction reference of 4 or more characters within one business is held, whoever the payer.
+16. **Duplicates**: a repeated transaction reference of 4 or more characters, containing digits, within one business is held, whoever the payer.
 17. **Time**: all dates and times follow Tanzania time (UTC+3), whatever the device's zone.
 18. **Same owner, several businesses**: linked by NIDA; lenders see the count, open loans, monthly instalments and overdue amount of the others, never their names.
+19. **Own figures count at once (10 Nov)**: a saved starting position and a new account's starting balance count immediately, marked "not verified"; Data Admin verifies later from the "To verify" list (asked for a check first, then loan interest). Loans still need the starting position verified (reconciled gate).
+20. **Money out (10 Nov, D1)**: nothing can leave an account beyond what it holds on that date and every later day; paying back more than is owed (customers, suppliers, loans) is refused.
+21. **Settings and prices (10 Nov, D6)**: a System Admin proposes, a different Super user approves (`proposeConfig`, `decideConfig`).
 
 ## Known limitations of the web MVP
 

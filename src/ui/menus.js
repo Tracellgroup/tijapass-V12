@@ -10,6 +10,8 @@ const m = (id, en, sw, icon) => ({ id, en, sw, icon });
 // Revised 29 Oct: nobody on staff onboards a business, and only officers do Records Ratings.
 const OFFICER = [
   m("off-businesses", "My businesses", "Biashara zangu", Building2),
+  // 9 Nov: figures are used at once and checked later; this list says what to check first.
+  m("verify", "To verify", "Za kuhakiki", ShieldCheck),
   m("off-rating", "Monthly records check", "Ukaguzi wa kumbukumbu wa mwezi", ClipboardCheck),
   m("off-activity", "Their activity and statements", "Shughuli na taarifa zao", FileSearch),
   m("off-close", "Daily-close follow-up", "Ufuatiliaji wa kufunga siku", ListChecks),

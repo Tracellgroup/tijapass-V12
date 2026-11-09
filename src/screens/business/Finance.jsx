@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { FREQUENCIES, LOAN_TYPES, gates } from "../../core/credit.js";
 import { addDays, money, today, uid } from "../../core/util.js";
-import { declareExternalLoan, requestLoan, respondOffer, setConsent } from "../../lib/actions.js";
+import { declareExternalLoan, requestLoan, respondOffer, setConsent, withdrawLoan } from "../../lib/actions.js";
 import { myBusiness } from "../../lib/access.js";
 import { L, tl } from "../../lib/i18n.js";
 import { useAction, useStore } from "../../lib/store.jsx";
@@ -25,16 +25,18 @@ function RequestLoan({ business, onDone }) {
   const [askConsent, setAskConsent] = useState(null);
   const products = approvedProducts(state).filter((p) => p.type === type);
   const product = products.find((p) => `${p.fiId}:${p.id}` === productKey);
-  const quotes = state.quoteRequests.filter((q) => q.requester.type === "business" && q.requester.id === business.id && ["quoted", "accepted"].includes(q.status));
+  // Only quotes still valid can back an asset loan (9 Nov, FIN-E).
+  const quotes = state.quoteRequests.filter((q) => q.requester.type === "business" && q.requester.id === business.id && ["quoted", "accepted"].includes(q.status) && !(q.quote?.validUntil && q.quote.validUntil < today(state)));
   const quote = quotes.find((q) => q.id === quoteId);
   const limit = product ? proposedLimits(state, business, [product])[0]?.limit : 0;
   const g = gates(state, business, today(state));
   const amt = type === "asset" ? quote?.quote?.total || 0 : Number(amount) || 0;
-  const ok = product && amt > 0 && purpose.trim().length > 2 && (type !== "asset" || quote) && product.frequencies.includes(frequency);
+  const outside = product && amt > 0 && (amt < product.min || amt > product.max);
+  const ok = product && amt > 0 && !outside && purpose.trim().length > 2 && (type !== "asset" || quote) && product.frequencies.includes(frequency);
   const consented = product && business.consent?.fis?.[product.fiId]?.granted;
   const send = () => {
-    act((d) => requestLoan(d, user, { id: uid("LN"), businessId: business.id, fiId: product.fiId, productId: product.id, type, amount: amt, purpose: purpose.trim(), frequency, quoteId: type === "asset" ? quoteId : null, checksAtRequest: g.results }), L("Loan request sent", "Ombi la mkopo limetumwa"));
-    onDone();
+    // Moves on only when the request was really sent (FIN-D).
+    if (act((d) => requestLoan(d, user, { id: uid("LN"), businessId: business.id, fiId: product.fiId, productId: product.id, type, amount: amt, purpose: purpose.trim(), frequency, quoteId: type === "asset" ? quoteId : null, checksAtRequest: g.results }), L("Loan request sent", "Ombi la mkopo limetumwa"))) onDone();
   };
   const submit = () => (consented ? send() : setAskConsent(product));
   return (
@@ -53,7 +55,8 @@ function RequestLoan({ business, onDone }) {
           <Field label={L("Amount (TZS)", "Kiasi (TZS)")}><AmountInput big value={amount} onChange={setAmount} /></Field>
         )}
         <Field label={L("Repayment", "Marejesho")}><Chips value={frequency} onChange={setFrequency} options={(product?.frequencies || Object.keys(FREQUENCIES)).map((k) => ({ value: k, label: tl(FREQUENCIES[k]) }))} /></Field>
-        <Field label={L("What is it for?", "Ni kwa ajili ya nini?")}><Area value={purpose} onChange={setPurpose} rows={2} /></Field>
+        <Field label={L("What is it for?", "Ni kwa ajili ya nini?")}><Area value={purpose} maxLength={300} onChange={setPurpose} rows={2} /></Field>
+        {outside && <p className="notice bad">{L(`This product lends from ${money(product.min)} to ${money(product.max)}.`, `Bidhaa hii inakopesha kuanzia ${money(product.min)} hadi ${money(product.max)}.`)}</p>}
         {limit > 0 && amt > limit && <p className="notice warn">{L("This is more than your proposed limit; the lender may offer less.", "Hiki ni zaidi ya kiwango chako; mkopeshaji anaweza kutoa kidogo.")}</p>}
         {!g.passed && <p className="notice warn">{L("Some checks are not met yet (see Passport). The lender cannot make an offer until they are.", "Baadhi ya vigezo bado havijatimia (ona Pasipoti). Mkopeshaji hawezi kutoa ofa hadi vitimie.")}</p>}
         <button className="btn primary big" disabled={!ok} onClick={submit}>{L("Send request", "Tuma ombi")}</button>
@@ -74,7 +77,8 @@ function RequestLoan({ business, onDone }) {
 function MyLoans({ business }) {
   const { state, user } = useStore();
   const act = useAction();
-  const [ch, setCh] = useState(business.channels[0]?.id);
+  const openChannels = business.channels.filter((c) => !c.archived);
+  const [ch, setCh] = useState(openChannels[0]?.id);
   const list = state.loans.filter((l) => l.businessId === business.id).sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   if (!list.length) return <Empty text={L("No loan requests yet.", "Bado hakuna maombi ya mkopo.")} />;
   return list.map((l) => {
@@ -95,13 +99,14 @@ function MyLoans({ business }) {
                 <span><b>{L("Total you will repay", "Jumla utakayorejesha")}</b></span><span>{money(l.offer.totalRepay)}</span>
               </div>
             </div>
-            {l.type !== "asset" && <Field label={L("Receive the money in", "Pokea pesa kwenye")}><Chips value={ch} onChange={setCh} options={business.channels.map((c) => ({ value: c.id, label: c.name }))} /></Field>}
+            {l.type !== "asset" && <Field label={L("Receive the money in", "Pokea pesa kwenye")}><Chips value={ch} onChange={setCh} options={openChannels.map((c) => ({ value: c.id, label: c.name }))} /></Field>}
             <div className="row">
               <button className="btn" onClick={() => act((d) => respondOffer(d, user, l.id, false), L("Offer declined", "Ofa imekataliwa"))}>{L("Decline", "Kataa")}</button>
               <button className="btn primary" onClick={() => act((d) => respondOffer(d, user, l.id, true, ch), L("Offer accepted", "Ofa imekubaliwa"))}>{L("Accept offer", "Kubali ofa")}</button>
             </div>
           </div>
         )}
+        {["requested", "offered"].includes(l.status) && <button className="btn small ghost mt" onClick={() => act((d) => withdrawLoan(d, user, l.id), L("Request withdrawn", "Ombi limeondolewa"))}>{L("Withdraw request", "Ondoa ombi")}</button>}
         {["disbursed", "repaid"].includes(l.status) && <div className="mt"><LoanTracker loan={l} business={business} canPay /></div>}
         <details className="mt"><summary className="small bold" style={{ cursor: "pointer" }}>{L("Messages with the lender", "Ujumbe na mkopeshaji")}</summary><div className="mt"><Thread threadKey={`loan:${l.id}`} title={`Loan ${l.id}`} participants={[{ fiId: l.fiId }, { businessId: business.id }]} /></div></details>
       </Card>
@@ -114,7 +119,9 @@ function ExternalLoans({ business }) {
   const act = useAction();
   const list = state.externalLoans.filter((x) => x.businessId === business.id && !x.archived);
   const [f, setF] = useState({ lender: "", balance: "", instalment: "", frequency: "monthly", remaining: "", nextDue: "" });
-  const ok = f.lender.trim() && Number(f.balance) > 0 && Number(f.instalment) > 0 && Number(f.remaining) > 0 && f.nextDue;
+  const tooBig = Number(f.instalment) > Number(f.balance) && Number(f.balance) > 0;
+  const short = !tooBig && Number(f.instalment) > 0 && Number(f.remaining) > 0 && Number(f.instalment) * Number(f.remaining) < Number(f.balance);
+  const ok = f.lender.trim().length >= 2 && Number(f.balance) > 0 && Number(f.instalment) > 0 && !tooBig && Number(f.remaining) > 0 && Number(f.remaining) <= 600 && f.nextDue;
   return (
     <div className="stack">
       {list.map((x) => (
@@ -131,13 +138,15 @@ function ExternalLoans({ business }) {
       <Card title={L("Declare a loan from outside TijaPass", "Taja mkopo kutoka nje ya TijaPass")}>
         <p className="small muted mb">{L("Declare each loan once. It lowers how much you can borrow here, so you are not over-borrowed.", "Taja kila mkopo mara moja. Unapunguza kiasi unachoweza kukopa hapa, ili usikope kupita uwezo.")}</p>
         <div className="form two">
-          <Field label={L("Lender", "Mkopeshaji")}><Text value={f.lender} onChange={(v) => setF({ ...f, lender: v })} /></Field>
+          <Field label={L("Lender", "Mkopeshaji")}><Text value={f.lender} maxLength={60} onChange={(v) => setF({ ...f, lender: v })} /></Field>
           <Field label={L("Amount still owed (TZS)", "Kiasi bado unadaiwa (TZS)")}><AmountInput value={f.balance} onChange={(v) => setF({ ...f, balance: v })} /></Field>
           <Field label={L("Instalment (TZS)", "Rejesho (TZS)")}><AmountInput value={f.instalment} onChange={(v) => setF({ ...f, instalment: v })} /></Field>
           <Field label={L("How often", "Mara ngapi")}><Chips value={f.frequency} onChange={(v) => setF({ ...f, frequency: v })} options={Object.keys(FREQUENCIES).map((k) => ({ value: k, label: tl(FREQUENCIES[k]) }))} /></Field>
-          <Field label={L("Instalments left", "Marejesho yaliyobaki")}><Text value={f.remaining} onChange={(v) => setF({ ...f, remaining: v.replace(/\D/g, "") })} inputMode="numeric" /></Field>
+          <Field label={L("Instalments left", "Marejesho yaliyobaki")}><Text value={f.remaining} maxLength={3} onChange={(v) => setF({ ...f, remaining: v.replace(/\D/g, "") })} inputMode="numeric" /></Field>
           <Field label={L("Next due date", "Tarehe ya rejesho lijalo")}><DatePicker name={L("Next due date", "Tarehe ya rejesho lijalo")} newestFirst={false} min={today(state)} max={addDays(today(state), 3650)} value={f.nextDue} onChange={(v) => setF({ ...f, nextDue: v })} /></Field>
         </div>
+        {tooBig && <p className="notice bad mt">{L("The instalment cannot be more than the amount still owed.", "Rejesho haliwezi kuzidi kiasi unachodaiwa.")}</p>}
+        {short && <p className="notice warn mt">{L(`These instalments add up to ${money(Number(f.instalment) * Number(f.remaining))}, less than the ${money(Number(f.balance))} still owed. Check the figures.`, `Marejesho haya yanajumlisha ${money(Number(f.instalment) * Number(f.remaining))}, chini ya ${money(Number(f.balance))} unayodaiwa. Hakiki takwimu.`)}</p>}
         <button className="btn primary mt" disabled={!ok} onClick={() => act((d) => declareExternalLoan(d, user, { id: uid("XL"), businessId: business.id, lender: f.lender.trim(), balance: Number(f.balance), instalment: Number(f.instalment), frequency: f.frequency, remaining: Number(f.remaining), nextDue: f.nextDue }), L("Declared", "Imetajwa")) && setF({ lender: "", balance: "", instalment: "", frequency: "monthly", remaining: "", nextDue: "" })}>{L("Declare loan", "Taja mkopo")}</button>
       </Card>
     </div>

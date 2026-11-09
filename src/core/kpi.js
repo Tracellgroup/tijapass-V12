@@ -106,17 +106,23 @@ export function computeKpis(state, filters, todayISO) {
     const r = latestRating(state, b.id);
     bands[r ? bandFor(r.score).key : "not_checked"]++;
   }
+  // An amount built from fewer than minCell loans or businesses could reveal one business's figure, so it is
+  // hidden like a small count (9 Nov, audit VF-19). null = suppressed.
+  const amt = (value, n) => (n > 0 && n < minCell ? null : value);
+  const needers = withBaseline.filter((b) => b.baseline.needFinance === "yes" && Number(b.baseline.needAmount) > 0).length;
+  const req4 = amt(reqValue, requested.length);
+  const appr4 = amt(apprValue, approved.length);
   return {
     hidden: false, count: pop.length, from, to, minGroup, minCell, filtered,
     k1: { registered: pop.length, active: active.length },
     k2: { noBank: share(noBank, withBaseline.length), neverBorrowed: share(neverBorrowed, withBaseline.length), answered: withBaseline.length, noBankN: noBank, neverBorrowedN: neverBorrowed },
     k3: { ready: share(ready, pop.length), readyCount: ready },
-    k4: { requested: reqValue, approved: apprValue, gap: reqValue - apprValue, statedNeed },
-    k5: { approvedCount: approved.length, approvedValue: apprValue, disbursedCount: disbursed.length, disbursedValue: sum(disbursed, (l) => l.offer?.principal || l.amount), outsideCount: outside.length, outsideValue: sum(outside, (q) => Number(q.outsideAmount) || 0) },
-    k6: { par30: share(par30, totalOut), repaymentRate: share(paidOnTime, dueInst.length), outstanding: totalOut },
+    k4: { requested: req4, approved: appr4, gap: req4 === null || appr4 === null ? null : reqValue - apprValue, statedNeed: amt(statedNeed, needers) },
+    k5: { approvedCount: approved.length, approvedValue: appr4, disbursedCount: disbursed.length, disbursedValue: amt(sum(disbursed, (l) => l.offer?.principal || l.amount), disbursed.length), outsideCount: outside.length, outsideValue: amt(sum(outside, (q) => Number(q.outsideAmount) || 0), outside.length) },
+    k6: { par30: share(par30, totalOut), repaymentRate: share(paidOnTime, dueInst.length), outstanding: amt(totalOut, live.length) },
     k7: { recording: share(recording, pop.length), importing: share(importing, pop.length), mobileMoney: share(mobileUse, withBaseline.length) },
     k8: { womenShare: share(women.length, pop.length), youthShare: share(youth.length, pop.length), womenFunded: share(women.filter((b) => fundedIds.has(b.id)).length, women.length), youthFunded: share(youth.filter((b) => fundedIds.has(b.id)).length, youth.length), womenN: women.length, youthN: youth.length, womenFundedN: women.filter((b) => fundedIds.has(b.id)).length, youthFundedN: youth.filter((b) => fundedIds.has(b.id)).length },
-    k9: { count: assetLoans.length, value: sum(assetLoans, (l) => l.offer?.principal || l.amount) },
+    k9: { count: assetLoans.length, value: amt(sum(assetLoans, (l) => l.offer?.principal || l.amount), assetLoans.length) },
     k10: { revenueFirst: g1.revenue, revenueLast: g2.revenue, profitFirst: g1.profit, profitLast: g2.profit, staff },
     extra: { avgCostPct: avgCost, complaints: complaints.length, complaintsResolved: complaints.filter((q) => q.status === "answered").length, bands }
   };
@@ -132,7 +138,8 @@ export function annualCostPct(loan) {
 }
 
 // CSV export follows the same suppression as the screen and says so in its header (BOT-01, BOT-07).
-export function kpiCsv(k, lang = "en") {
+export function kpiCsv(k0, lang = "en") {
+  const k = JSON.parse(JSON.stringify(k0, (key, v) => (v === null ? "suppressed" : v)));
   const c = (n) => (n > 0 && n < (k.minCell || 3) ? `fewer than ${k.minCell || 3}` : n);
   const p = (x, n) => (n != null && n > 0 && n < (k.minCell || 3) ? "suppressed" : round(x * 100, 1) + "%");
   const rows = [

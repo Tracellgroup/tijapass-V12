@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ACCOUNTS, KINDS, READY_KINDS, SUSPENSE_TARGETS } from "../../core/kinds.js";
 import { journal, ledger, openingLines, trialBalance } from "../../core/accounting.js";
 import { FREQUENCIES } from "../../core/credit.js";
+import { SIGNALS, verifyQueue } from "../../core/verify.js";
 import { bandFor, ratingsFor } from "../../core/rating.js";
 import { addDays, money, sum, today } from "../../core/util.js";
 import { answerQuery, assignOfficer, changeTreatment, checkOrg, resolveSuspense, reviewPosted, decideChange, decideDispute, decideHeld, decideOpening, decideOrg, recordRecheck, reverseEntry, reviewExternalLoan, stockAdjust, verifyIdentity } from "../../lib/actions.js";
@@ -77,15 +78,17 @@ export function Approvals() {
           </Card>
         );
       }) : <Empty text={L("Nothing held.", "Hakuna kilichosimamishwa.")} />)}
-      {tab === "opening" && (state.businesses.filter((b) => b.opening?.status === "submitted").map((b) => {
+      {tab === "opening" && counts.opening > 0 && <p className="small muted">{L("In use but not verified yet, highest priority first (asked for a check, loan interest). The full list is under To verify.", "Zinatumika lakini bado hazijahakikiwa, kipaumbele kwanza (walioomba ukaguzi, wanaotaka mkopo). Orodha kamili iko kwenye Za kuhakiki.")}</p>}
+      {tab === "opening" && (verifyQueue(state, user, today(state)).rows.filter((r) => r.needs.includes("opening") || r.needs.includes("openingReturned")).slice(0, 30).map(({ business: b, signals }) => {
         const lines = openingLines(b);
         return (
           <Card key={b.id} title={b.profile.businessName}>
             <div className="kv">
               {lines.map((l) => <Fragment key={l.acc}><span>{l.acc.startsWith("ch:") ? b.channels.find((c) => `ch:${c.id}` === l.acc)?.name : tl(ACCOUNTS[l.acc])}</span><span>{money(l.dr || -l.cr)}</span></Fragment>)}
             </div>
-            <p className="small muted mt">{L("Submitted by", "Imewasilishwa na")} {b.opening.by?.name} · {fmtDateTime(b.opening.at)}</p>
-            <div className="row mt"><button className="btn" onClick={() => setModal({ type: "opening", b, approve: false })}>{L("Return for changes", "Rudisha kwa marekebisho")}</button><button className="btn primary" onClick={() => setModal({ type: "opening", b, approve: true })}>{L("Approve and lock", "Idhinisha na funga")}</button></div>
+            <p className="small muted mt">{L("Saved by", "Imehifadhiwa na")} {b.opening.by?.name} · {fmtDateTime(b.opening.at)}{b.opening.returned ? ` · ${L("correction asked", "marekebisho yameombwa")}: ${b.opening.returned.reason}` : ""}</p>
+            {signals.length > 0 && <div className="row mt">{signals.map((k) => <Pill key={k} tone="orange">{tl(SIGNALS[k])}</Pill>)}</div>}
+            <div className="row mt"><button className="btn" onClick={() => setModal({ type: "opening", b, approve: false })}>{L("Ask to correct", "Omba marekebisho")}</button><button className="btn primary" onClick={() => setModal({ type: "opening", b, approve: true })}>{L("Verified: lock it", "Imehakikiwa: funga")}</button></div>
           </Card>
         );
       }))}
@@ -102,8 +105,8 @@ export function Approvals() {
             {e && <p className="notice mt">{fmtDate(e.date)} · {money(e.amount)} · {kindPlain(e.kind)} · “{e.description}”</p>}
             <div className="row mt">
               {c.type === "correction" && <button className="btn" onClick={() => go("ledger", { id: c.businessId })}>{L("Open ledger", "Fungua leja")}</button>}
-              <button className="btn danger" onClick={() => setModal({ type: "change", c, approve: false })}>{L("Decline", "Kataa")}</button>
-              <button className="btn primary" onClick={() => setModal({ type: "change", c, approve: true })}>{c.type === "correction" ? L("Mark corrected", "Weka imesahihishwa") : L("Approve", "Idhinisha")}</button>
+              <button className="btn danger" onClick={() => setModal({ type: "change", c, approve: false })}>{c.type === "channelOpening" ? L("Not right: take it out", "Si sahihi: iondoe") : L("Decline", "Kataa")}</button>
+              <button className="btn primary" onClick={() => setModal({ type: "change", c, approve: true })}>{c.type === "correction" ? L("Mark corrected", "Weka imesahihishwa") : c.type === "channelOpening" ? L("Verified", "Imehakikiwa") : L("Approve", "Idhinisha")}</button>
             </div>
           </Card>
         );
@@ -181,7 +184,7 @@ export function Approvals() {
           {modal.decision === "change" && <Field label={L("Post as", "Ingiza kama")}><Select value={kind} onChange={setKind} options={READY_KINDS.map((k) => ({ value: k, label: kindPlain(k) }))} /></Field>}
         </ReasonModal>
       )}
-      {modal?.type === "opening" && <ReasonModal title={modal.approve ? L("Approve and lock starting position", "Idhinisha na funga hali ya kuanzia") : L("Return for changes", "Rudisha kwa marekebisho")} onClose={() => setModal(null)} onSubmit={(reason) => act((d) => decideOpening(d, user, modal.b.id, modal.approve, reason), L("Done", "Imefanyika"))} />}
+      {modal?.type === "opening" && <ReasonModal title={modal.approve ? L("Starting position verified: lock it", "Hali ya kuanzia imehakikiwa: ifunge") : L("Ask the business to correct it (it keeps counting meanwhile)", "Omba biashara iisahihishe (inaendelea kuhesabiwa)")} onClose={() => setModal(null)} onSubmit={(reason) => act((d) => decideOpening(d, user, modal.b.id, modal.approve, reason), L("Done", "Imefanyika"))} />}
       {modal?.type === "change" && <ReasonModal title={modal.approve ? L("Approve change", "Idhinisha mabadiliko") : L("Decline change", "Kataa mabadiliko")} danger={!modal.approve} onClose={() => setModal(null)} onSubmit={(reason) => act((d) => decideChange(d, user, modal.c.id, modal.approve, reason), L("Done", "Imefanyika"))} />}
       {modal?.type === "external" && <ReasonModal title={modal.archive ? L("Archive declared loan", "Hifadhi mkopo uliotajwa") : L("Mark declared loan reviewed", "Weka mkopo uliotajwa umekaguliwa")} onClose={() => setModal(null)} onSubmit={(reason) => act((d) => reviewExternalLoan(d, user, modal.x.id, ext[modal.x.id] || {}, reason, modal.archive), L("Done", "Imefanyika"))} />}
       {modal?.type === "org" && <ReasonModal title={modal.approve ? L("Approve organisation", "Idhinisha taasisi") : L("Decline organisation", "Kataa taasisi")} danger={!modal.approve} onClose={() => setModal(null)} onSubmit={(reason) => act((d) => decideOrg(d, user, modal.o.kind, modal.o.id, modal.approve, reason), L("Done", "Imefanyika"))} />}

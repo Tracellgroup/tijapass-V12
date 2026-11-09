@@ -50,6 +50,34 @@ export const fmtNida = (n) => {
   const s = normNida(n);
   return s.length === 20 ? `${s.slice(0, 8)}-${s.slice(8, 13)}-${s.slice(13, 18)}-${s.slice(18)}` : String(n || "");
 };
+// While typing (9 Nov, REG-2): digits only, never more than 20, shown as 8-5-5-2.
+export const typeNida = (v) => {
+  const s = normNida(v).slice(0, 20);
+  return [s.slice(0, 8), s.slice(8, 13), s.slice(13, 18), s.slice(18)].filter(Boolean).join("-");
+};
+// The NIDA number starts with the holder's birth date, YYYYMMDD (decided 9 Nov, D4: a mismatch is refused).
+export const nidaDob = (n) => {
+  const s = normNida(n);
+  if (s.length < 8) return null;
+  const iso = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  return validISODate(iso) ? iso : null;
+};
+
+// ---------- Names, email (9 Nov, REG-7, REG-8) ----------
+export const NAME_MAX = 60;
+export function nameProblem(name) {
+  const v = String(name || "").trim().replace(/\s+/g, " ");
+  if (v.length < 3 || v.length > NAME_MAX) return "length";
+  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(v)) return "chars";
+  if (v.split(" ").filter((w) => w.replace(/['-]/g, "").length >= 2).length < 2) return "words";
+  return null;
+}
+export const validName = (n) => !nameProblem(n);
+export const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(String(e || "").trim());
+export const sameName = (a, b) => {
+  const w = (x) => String(x || "").toLowerCase().replace(/[^a-zà-ÿ ]/g, " ").split(/\s+/).filter(Boolean).sort().join(" ");
+  return w(a) === w(b);
+};
 
 // ---------- Phones ----------
 export const validPhone = (p) => /^(\+?255|0)[67]\d{8}$/.test(String(p || "").replace(/\s/g, ""));
@@ -59,6 +87,10 @@ export const normPhone = (p) => {
 };
 
 // ---------- Business structure ----------
+// Tanzanian banks offered when adding a bank account (REG-12); "Other" lets the name be typed.
+export const TZ_BANKS = ["CRDB Bank", "NMB Bank", "NBC Bank", "Stanbic Bank", "Absa Bank", "Equity Bank", "Exim Bank", "DTB Bank", "KCB Bank", "Azania Bank", "Amana Bank", "Bank of Africa", "I&M Bank", "Akiba Commercial Bank", "Mwanga Hakika Bank", "TCB Bank", "Access Bank", "Selcom Microfinance Bank", "Mkombozi Bank", "Maendeleo Bank"];
+export const MAX_MONTHS_OPERATING = 600;
+
 export const LEGAL_FORMS = [
   { id: "sole", en: "One owner (sole trader)", sw: "Mmiliki mmoja" },
   { id: "partnership", en: "Partners or family business", sw: "Ubia au biashara ya familia" },
@@ -114,30 +146,65 @@ export const ownershipGender = (profile) => (womenShare(profile) >= 51 ? "female
 export function profileProblems(profile, todayISO) {
   const out = [];
   const add = (en, sw) => out.push({ en, sw });
-  if (!String(profile.businessName || "").trim()) add("Enter the business name.", "Andika jina la biashara.");
+  if (String(profile.businessName || "").trim().length < 2) add("Enter the business name.", "Andika jina la biashara.");
+  if (String(profile.businessName || "").length > 80) add("The business name is too long (80 characters at most).", "Jina la biashara ni refu mno (herufi 80 zaidi).");
   const owners = ownersOf(profile);
   if (!owners.length) add("Add at least one owner.", "Ongeza angalau mmiliki mmoja.");
+  // Ownership type must fit the owners (REG-6).
+  const form = profile.legalForm;
+  if (form === "sole" && owners.length !== 1) add("\"One owner\" means exactly one owner. Choose partners, company or group for more.", "\"Mmiliki mmoja\" ni mmiliki mmoja tu. Chagua ubia, kampuni au kikundi kwa zaidi.");
+  if ((form === "partnership" || form === "group") && owners.length < 2) add("Partners, family businesses and groups need at least two owners.", "Ubia, biashara ya familia na vikundi vinahitaji wamiliki angalau wawili.");
+  if (form === "company" && String(profile.registrationNo || "").trim().length < 3) add("A registered company needs its BRELA registration number.", "Kampuni iliyosajiliwa inahitaji namba yake ya BRELA.");
+  if (profile.email && !validEmail(profile.email)) add("Check the email address, e.g. name@example.com.", "Hakiki barua pepe, k.m. jina@mfano.com.");
+  if (profile.phone2 && !validPhone(profile.phone2)) add("Check the second phone number.", "Hakiki namba ya simu ya pili.");
+  // Staff counts (REG-9) and months operating (REG-13).
+  const staff = Number(profile.staffTotal || 0);
+  if (Number(profile.staffWomen || 0) > staff || Number(profile.staffPaid || 0) > staff) add("Women staff and paid staff cannot be more than the total staff.", "Wafanyakazi wanawake au wanaolipwa hawawezi kuzidi wafanyakazi wote.");
+  const months = Number(profile.monthsOperating || 0);
+  if (months < 0 || months > MAX_MONTHS_OPERATING) add(`Months operating must be from 0 to ${MAX_MONTHS_OPERATING}.`, `Miezi ya biashara iwe kati ya 0 na ${MAX_MONTHS_OPERATING}.`);
+  const m0 = owners.find((o) => o.main) || owners[0];
+  const age0 = ageOn(m0?.dob, todayISO);
+  if (age0 != null && months > Math.max(0, (age0 - MIN_AGE) * 12 + 12)) add("Months operating is more than the main owner's age allows.", "Miezi ya biashara ni mingi kuliko umri wa mmiliki mkuu unavyoruhusu.");
+  // Managers (REG-16): a real name and their own phone.
+  const mg = profile.management;
+  if (mg && mg.managedBy && mg.managedBy !== "owner") {
+    if (!(mg.managers || []).length) add("Add each manager's name and phone.", "Ongeza jina na simu ya kila meneja.");
+    for (const x of mg.managers || []) {
+      if (!validName(x.name)) add("Enter each manager's full name (at least two names).", "Andika jina kamili la kila meneja (angalau majina mawili).");
+      if (!validPhone(x.phone)) add("Enter a valid phone number for each manager.", "Andika namba sahihi ya simu ya kila meneja.");
+      else if (owners.some((o) => normPhone(o.phone) === normPhone(x.phone))) add("A manager needs their own phone number, not an owner's.", "Meneja anahitaji namba yake, si ya mmiliki.");
+    }
+  }
   const total = owners.reduce((t, o) => t + (Number(o.sharePct) || 0), 0);
   if (owners.length && Math.round(total) !== 100) add(`Owners' shares must add up to 100% (now ${total}%).`, `Hisa za wamiliki lazima zijumlishe 100% (sasa ${total}%).`);
   const phones = new Set();
   const nidas = new Set();
   owners.forEach((o, i) => {
     const who = owners.length > 1 ? ` (${o.name || `owner ${i + 1}`})` : "";
-    if (String(o.name || "").trim().length < 3) add(`Enter each owner's full name${who}.`, `Andika jina kamili la kila mmiliki${who}.`);
+    const np = nameProblem(o.name);
+    if (np === "chars") add(`Names use letters only (apostrophe and hyphen allowed)${who}.`, `Majina yatumie herufi tu (' na - vinaruhusiwa)${who}.`);
+    else if (np) add(`Enter each owner's full name, at least two names${who}.`, `Andika jina kamili la kila mmiliki, angalau majina mawili${who}.`);
+    const share = Number(o.sharePct);
+    if (!Number.isInteger(share) || share < 1 || share > 100) add(`Each owner's share must be a whole number from 1% to 100%${who}.`, `Hisa ya kila mmiliki iwe namba kamili kati ya 1% na 100%${who}.`);
     if (!validPhone(o.phone)) add(`Enter a valid phone number${who}, e.g. 0712 345 678.`, `Andika namba sahihi ya simu${who}, k.m. 0712 345 678.`);
     else if (phones.has(normPhone(o.phone))) add("Each owner needs their own phone number.", "Kila mmiliki anahitaji namba yake ya simu.");
     else phones.add(normPhone(o.phone));
     const dp = dobProblem(o.dob, todayISO);
     if (dp) out.push({ en: dp.en + who, sw: dp.sw + who });
     if (!o.gender) add(`Choose gender${who}.`, `Chagua jinsia${who}.`);
-    if (o.nida && !validNida(o.nida)) add(`A NIDA number has 20 digits${who}.`, `Namba ya NIDA ina tarakimu 20${who}.`);
+    if (o.nida && (!validNida(o.nida) || /[^\d-]/.test(String(o.nida)))) add(`A NIDA number has exactly 20 digits${who}.`, `Namba ya NIDA ina tarakimu 20 hasa${who}.`);
     if (o.nida && validNida(o.nida)) {
+      const nd = nidaDob(o.nida);
+      if (!nd) add(`Check the NIDA number: its first 8 digits should be the birth date${who}.`, `Hakiki namba ya NIDA: tarakimu 8 za kwanza ni tarehe ya kuzaliwa${who}.`);
+      else if (o.dob && nd !== o.dob) add(`The NIDA number does not match the date of birth${who}.`, `Namba ya NIDA hailingani na tarehe ya kuzaliwa${who}.`);
       if (nidas.has(normNida(o.nida))) add("Two owners cannot share one NIDA number.", "Wamiliki wawili hawawezi kutumia NIDA moja.");
       nidas.add(normNida(o.nida));
     }
     const age = ageOn(o.dob, todayISO);
     if (age != null && age < ADULT_AGE && (!String(o.guardianName || "").trim() || !validPhone(o.guardianPhone)))
       add(`Owners under 18 need a parent or guardian's name and phone${who}.`, `Wamiliki chini ya miaka 18 wanahitaji jina na simu ya mzazi au mlezi${who}.`);
+    if (age != null && age < ADULT_AGE && validPhone(o.guardianPhone) && validPhone(o.phone) && normPhone(o.guardianPhone) === normPhone(o.phone))
+      add(`The parent or guardian needs their own phone, not the owner's${who}.`, `Mzazi au mlezi anahitaji simu yake, si ya mmiliki${who}.`);
   });
   return out;
 }
@@ -150,6 +217,24 @@ export function linkedBusinesses(state, business) {
   const mine = new Set(personKeys(business.profile));
   if (!mine.size) return [];
   return state.businesses.filter((b) => b.id !== business.id && b.status !== "archived" && personKeys(b.profile).some((k) => mine.has(k)));
+}
+
+// One NIDA number belongs to one person (REG-3): the same NIDA on another business must have the same name,
+// date of birth and gender, or registration is refused as an identity conflict.
+export function nidaConflicts(state, profile, excludeBusinessId = null) {
+  const out = [];
+  for (const o of ownersOf(profile)) {
+    if (!validNida(o.nida)) continue;
+    const key = normNida(o.nida);
+    for (const b of state.businesses || []) {
+      if (b.id === excludeBusinessId || b.status === "archived") continue;
+      for (const x of ownersOf(b.profile)) {
+        if (normNida(x.nida) !== key) continue;
+        if (!sameName(x.name, o.name) || (x.dob && o.dob && x.dob !== o.dob) || (x.gender && o.gender && x.gender !== o.gender)) out.push({ owner: o.name, nida: key, businessId: b.id });
+      }
+    }
+  }
+  return out;
 }
 
 export const isAdultMain = (profile, todayISO) => {
