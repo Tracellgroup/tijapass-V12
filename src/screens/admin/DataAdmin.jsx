@@ -347,13 +347,14 @@ export function Queries() {
   const act = useAction();
   const [tab, setTab] = useState("open");
   const [answer, setAnswer] = useState({});
-  const list = state.queries.filter((q) => (tab === "open" ? q.status === "open" : q.status !== "open"));
+  // Premium questions first (priority support, 11 Nov), then the oldest.
+  const list = state.queries.filter((q) => (tab === "open" ? q.status === "open" : q.status !== "open")).sort((a, b) => (tab === "open" ? (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || String(a.createdAt).localeCompare(String(b.createdAt)) : 0));
   return (
     <div className="stack">
       <Tabs value={tab} onChange={setTab} tabs={[{ value: "open", label: L("Open", "Wazi"), count: state.queries.filter((q) => q.status === "open").length }, { value: "answered", label: L("Answered", "Yamejibiwa") }]} />
       {!list.length && <Empty text={L("No queries.", "Hakuna maswali.")} />}
       {list.map((q) => (
-        <Card key={q.id} title={q.topic || L("Question", "Swali")} actions={<>{q.complaint && <Pill tone="red">{L("Complaint", "Lalamiko")}</Pill>}<StatusPill status={q.status} /></>}>
+        <Card key={q.id} title={q.topic || L("Question", "Swali")} actions={<>{q.priority && <Pill tone="orange">{L("Premium: answer today", "Premium: jibu leo")}</Pill>}{q.complaint && <Pill tone="red">{L("Complaint", "Lalamiko")}</Pill>}<StatusPill status={q.status} /></>}>
           <p className="small muted">{q.by.name} ({q.by.role}) · {fmtDateTime(q.createdAt)}{q.businessId ? ` · ${bizName(state, q.businessId)}` : ""}</p>
           <details className="mt"><summary className="small bold">{L("Chat attached", "Mazungumzo yaliyoambatishwa")}</summary>{(q.chat || []).map((m, i) => <p key={i} className="small"><b>{m.from === "me" ? q.by.name : "TijaPass"}:</b> {m.text}</p>)}</details>
           {q.status === "open" ? (

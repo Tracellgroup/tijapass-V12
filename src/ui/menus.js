@@ -89,3 +89,12 @@ export const MENUS = {
 export const homeFor = (role) => MENUS[role]?.[0]?.id || "help";
 
 export const ShieldIcon = ShieldCheck;
+
+// Staff sign-ins (Premium, 11 Nov): recording, activity, the daily close and help; reports only if the owner allows.
+export const MEMBER_ROUTES = ["home", "record", "activity", "close", "help"];
+export const menuFor = (user) => {
+  const list = MENUS[user?.role] || [];
+  if (!user?.member) return list;
+  return list.filter((x) => MEMBER_ROUTES.includes(x.id) || (x.id === "reports" && user.reports));
+};
+export const routeAllowedFor = (user, route) => !user?.member || MEMBER_ROUTES.includes(route) || (route === "reports" && user.reports);

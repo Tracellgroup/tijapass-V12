@@ -13,6 +13,8 @@ import { putFile } from "../../lib/files.js";
 import { L, getLang, tl } from "../../lib/i18n.js";
 import { pdfText } from "../../lib/pdf.js";
 import { myBusiness } from "../../lib/access.js";
+import { hasFeature } from "../../core/billing.js";
+import { LockedCard } from "./Benefits.jsx";
 import { useAction, useStore } from "../../lib/store.jsx";
 import { AmountInput, Area, Card, Chips, DatePicker, Field, PhotoInput, Pill, Select, Text, VoiceButton, downloadText, fmtDate } from "../../ui/components.jsx";
 import { holdText, kindPlain } from "../common.jsx";
@@ -489,12 +491,14 @@ export default function Record() {
   const [mode, setMode] = useState(params.mode === "upload" ? "upload" : "entry");
   const t = today(state);
   const missed = unclosedPastDays(state, b, t);
+  // Statement upload comes with Day pass and up (11 Nov); typing stays free.
+  const canUpload = hasFeature(state, b, "upload", t);
   return (
     <div className="stack">
       <div className="between">
         <div className="chips">
           <button className={`chip ${mode === "entry" ? "on" : ""}`} onClick={() => setMode("entry")}>{L("Record money", "Andika pesa")}</button>
-          <button className={`chip ${mode === "upload" ? "on" : ""}`} onClick={() => setMode("upload")}><FileUp size={16} />{L("Upload a statement", "Pakia taarifa")}</button>
+          <button className={`chip ${mode === "upload" ? "on" : ""}`} onClick={() => setMode("upload")}><FileUp size={16} />{L("Upload a statement", "Pakia taarifa")}{canUpload ? "" : " 🔒"}</button>
         </div>
         <button className="btn navy" onClick={() => go("close")}><Moon size={18} />{L("Close my day", "Funga siku yangu")}</button>
       </div>
@@ -505,7 +509,7 @@ export default function Record() {
           <div className="mt"><button className="btn small" onClick={() => go("close")}><Moon size={16} />{L("Catch up now", "Fidia sasa")}</button></div>
         </div>
       )}
-      {mode === "entry" ? <EntryForm key={params.dir || "x"} business={b} initial={{ dir: params.dir }} /> : <StatementUpload business={b} />}
+      {mode === "entry" ? <EntryForm key={params.dir || "x"} business={b} initial={{ dir: params.dir }} /> : canUpload ? <StatementUpload business={b} /> : <LockedCard feature="upload" />}
     </div>
   );
 }

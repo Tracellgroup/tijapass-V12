@@ -1,8 +1,8 @@
 // Screens used by several user types: Help, Messages, Wallet, Packages, quote requests, organisation profile.
 import { CheckCircle2, MessageCircle, Phone, Search, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { activePackage } from "../core/billing.js";
-import { money, nowISO, today, uid } from "../core/util.js";
+import { FEATURES, FREE_BENEFITS, activePackage, activeSubscription, featuresOf, hasFeature } from "../core/billing.js";
+import { addDays, money, nowISO, today, uid } from "../core/util.js";
 import { createQuery, payPackage, quoteStep, requestQuote } from "../lib/actions.js";
 import { askHelp } from "../lib/ai.js";
 import { myBusiness, myOrg } from "../lib/access.js";
@@ -11,7 +11,7 @@ import { useAction, useStore } from "../lib/store.jsx";
 import { FAQ, TOPICS } from "../content/faq.js";
 import { guideFor } from "../content/guide.js";
 import { AmountInput, Area, Card, Chips, Empty, Field, Modal, Select, StatusPill, Tabs, Text, VoiceButton, fmtDate, fmtDateTime } from "../ui/components.jsx";
-import { MENUS } from "../ui/menus.js";
+import { MENUS, menuFor } from "../ui/menus.js";
 import { Thread, myThreads } from "./common.jsx";
 
 // ------------------------------------------------------------------ Help (HLP-01 to HLP-04)
@@ -56,7 +56,7 @@ export function Help() {
   const faq = FAQ.filter((f) => !f.roles || f.roles.includes(user.role) || ["officer", "dataAdmin", "systemAdmin", "super"].includes(user.role));
   const found = useMemo(() => searchFaq(faq, query), [faq, query]);
   const guide = guideFor(user.role);
-  const menu = MENUS[user.role] || [];
+  const menu = menuFor(user);
   const myQueries = state.queries.filter((q) => q.by.id === user.id);
   const b = myBusiness(state, user);
   const shots = useGuideShots(tab === "guide");
@@ -178,6 +178,7 @@ export function Help() {
             <a className="item" href={`tel:${state.settings.support.phone.replace(/\s/g, "")}`}><Phone size={20} /><div className="grow"><b>{L("Phone", "Simu")}</b><div className="small muted">{state.settings.support.phone}</div></div></a>
           </div>
           <p className="small muted mt">{L("Hours", "Saa za kazi")}: {state.settings.support.hours}</p>
+          {b && hasFeature(state, b, "prioritySupport", today(state)) && <p className="notice good mt"><b>{L("Premium: priority support", "Premium: msaada wa kipaumbele")}</b>{L("Questions you send to TijaPass Admin go to the top and are answered the same day.", "Maswali unayotuma kwa TijaPass Admin yanakwenda juu na yanajibiwa siku hiyohiyo.")}</p>}
         </Card>
       )}
     </div>
@@ -255,18 +256,37 @@ export function Wallet() {
   );
 }
 
-// ------------------------------------------------------------------ Business packages (PKG-01, PKG-02, PKG-05)
+// ------------------------------------------------------------------ Business packages (PKG-01, PKG-02, PKG-05; benefits 11 Nov)
+const PERIOD_DAYS = { day: 1, week: 7, month: 30 };
+const perText = (p) => (p.period === "day" ? L("per day", "kwa siku") : p.period === "week" ? L("per week", "kwa wiki") : p.period === "month" ? L("per month", "kwa mwezi") : "");
+const lengthText = (p) => (p.period === "day" ? L("for 1 day", "kwa siku 1") : p.period === "week" ? L("for 7 days", "kwa siku 7") : L("for 30 days", "kwa siku 30"));
+const joinAnd = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} ${L("and", "na")} ${xs[xs.length - 1]}` : xs[0] || "");
+// One line on what a package adds, built from the same rules that unlock it.
+function adds(p, all) {
+  const f = featuresOf(p.id);
+  if (!f.length) return L("The basics, free forever", "Mambo ya msingi, bure daima");
+  const below = all.filter((q) => q.id !== p.id && q.price < p.price && featuresOf(q.id).every((x) => f.includes(x)) && featuresOf(q.id).length && featuresOf(q.id).length < f.length);
+  const base = below.sort((x, y) => featuresOf(y.id).length - featuresOf(x.id).length || y.price - x.price)[0];
+  const extra = f.filter((x) => !base || !featuresOf(base.id).includes(x));
+  const head = base ? `${L("Everything in", "Vyote vya")} ${tl(base)}, ${L("plus", "pamoja na")}` : `${L("Everything in Basic, plus", "Vyote vya Msingi, pamoja na")}`;
+  return `${head} ${joinAnd(extra.map((x) => tl(FEATURES[x].short)))}, ${lengthText(p)}.`;
+}
+
 export function Packages() {
-  const { state, user, update } = useStore();
+  const { state, user, params } = useStore();
   const act = useAction();
   const b = myBusiness(state, user);
   const t = today(state);
+  const all = state.packages.business;
   const current = activePackage(state, b, t);
-  const [pay, setPay] = useState(null);
+  const sub = activeSubscription(state, b, t);
+  const next = state.subscriptions.filter((x) => x.ownerId === b.id && x.status === "active" && x.from > t).sort((x, y) => x.from.localeCompare(y.from));
+  const [pay, setPay] = useState(() => all.find((p) => p.id === params.choose && p.price > 0) || null);
   const [method, setMethod] = useState("mobile");
   const [result, setResult] = useState(null);
   const ref = useMemo(() => uid("REF"), [pay]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sub = state.subscriptions.filter((s) => s.ownerId === b.id && s.to >= t).pop();
+  const lastEnd = state.subscriptions.filter((x) => x.ownerId === b.id && x.status === "active" && x.to >= t).map((x) => x.to).sort().pop();
+  const startsOn = lastEnd ? addDays(lastEnd, 1) : t;
   const doPay = (outcome) => {
     let o = outcome;
     if (o === "success" && method === "wallet" && (b.walletBalance || 0) < pay.price) o = "failed";
@@ -281,24 +301,51 @@ export function Packages() {
     });
     setResult(r);
   };
-  void update;
+  const mid = all.filter((p) => p.price > 0 && p.id !== "premium");
+  const prem = all.find((p) => p.id === "premium");
+  const cols = [{ key: "basic", label: tl(all.find((p) => p.id === "basic")) }, { key: mid[0]?.id, label: L("Day, Week, Month", "Siku, Wiki, Mwezi") }, { key: "premium", label: tl(prem) }];
+  const paidRows = Object.keys(FEATURES).filter((f) => featuresOf("premium").includes(f));
+  const tick = (ok) => (ok ? <CheckCircle2 size={18} className="green" aria-label={L("Included", "Kimo")} /> : <span className="muted" aria-label={L("Not included", "Hakimo")}>–</span>);
+  const mine = featuresOf(current);
   return (
     <div className="stack">
-      <p className="notice good"><b>{L("Recording is always free", "Kuandika ni bure daima")}</b>{L("Basic has no fee per entry. Other packages add features.", "Msingi hauna ada kwa kila muamala. Vifurushi vingine vinaongeza huduma.")}</p>
-      <p>{L("Your package now", "Kifurushi chako sasa")}: <b>{tl(state.packages.business.find((p) => p.id === current))}</b>{sub ? ` · ${L("until", "hadi")} ${fmtDate(sub.to)}` : ""}</p>
+      <p className="notice good"><b>{L("Recording is always free", "Kuandika ni bure daima")}</b>{L("Basic has no fee per entry and never expires. Paid packages add tools that save you time or give you documents others ask for.", "Msingi hauna ada kwa kila muamala na hauishi. Vifurushi vya kulipia vinaongeza zana zinazokuokolea muda au kukupa nyaraka unazoombwa.")}</p>
+      <Card title={L("Your package now", "Kifurushi chako sasa")}>
+        <p><b>{tl(all.find((p) => p.id === current))}</b>{sub ? ` · ${L("until", "hadi")} ${fmtDate(sub.to)}` : ""}</p>
+        {mine.length > 0 && <p className="small mt">{L("You have", "Unayo")}: {joinAnd(mine.map((x) => tl(FEATURES[x])))}.</p>}
+        {next.map((x) => <p key={x.id} className="small muted">{L("Next", "Kinachofuata")}: {tl(all.find((p) => p.id === x.packageId))} {L("from", "kuanzia")} {fmtDate(x.from)} {L("to", "hadi")} {fmtDate(x.to)}</p>)}
+      </Card>
       <div className="grid g3">
-        {state.packages.business.map((p) => (
-          <Card key={p.id} title={tl(p)} className={current === p.id ? "on" : ""}>
+        {all.map((p) => (
+          <Card key={p.id} title={tl(p)} className={`pkg-card ${current === p.id ? "on" : ""}`}>
             <strong style={{ fontSize: 24, fontFamily: "Manrope, Inter, sans-serif" }}>{p.price ? money(p.price) : L("Free", "Bure")}</strong>
-            <span className="small muted"> {p.period === "day" ? L("per day", "kwa siku") : p.period === "week" ? L("per week", "kwa wiki") : p.period === "month" ? L("per month", "kwa mwezi") : ""}</span>
-            <ul className="small" style={{ paddingLeft: 18 }}>{(getLang() === "sw" ? p.featuresSw : p.featuresEn).map((f) => <li key={f}>{f}</li>)}</ul>
-            {p.price > 0 && <button className="btn primary block" onClick={() => { setPay(p); setResult(null); }}>{L("Choose", "Chagua")}</button>}
+            <span className="small muted"> {perText(p)}</span>
+            {p.period === "month" && p.price > 0 && <div className="tiny muted">{L("about", "takriban")} {money(Math.round(p.price / 30))} {L("a day", "kwa siku")}</div>}
+            <p className="small mt">{adds(p, all)}</p>
+            {(p.forEn || p.forSw) && <p className="small muted mt"><b>{L("Choose this if", "Chagua hiki ikiwa")}:</b> {getLang() === "sw" ? p.forSw : p.forEn}.</p>}
+            {p.price > 0 && <button className="btn primary block mt" onClick={() => { setPay(p); setResult(null); }}>{L("Choose", "Chagua")}</button>}
             {current === p.id && <p className="small green bold mt"><CheckCircle2 size={14} /> {L("Active", "Kinatumika")}</p>}
           </Card>
         ))}
       </div>
+      <Card title={L("What each package gives", "Kila kifurushi kinatoa nini")}>
+        <div className="table-wrap">
+          <table className="t cmp">
+            <colgroup><col className="feat" /><col /><col /><col /></colgroup>
+            <thead><tr><th />{cols.map((c) => <th key={c.label}>{c.label}</th>)}</tr></thead>
+            <tbody>
+              {FREE_BENEFITS.map((f) => <tr key={f.en}><td>{tl(f)}</td>{cols.map((c) => <td key={c.label}>{tick(true)}</td>)}</tr>)}
+              {paidRows.map((f) => (
+                <tr key={f}><td><b>{tl(FEATURES[f])}</b>{FEATURES[f].note && <div className="tiny muted">{tl(FEATURES[f].note)}</div>}</td>{cols.map((c) => <td key={c.label}>{tick(featuresOf(c.key).includes(f))}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <p className="notice"><b>{L("When a package ends", "Kifurushi kikiisha")}</b>{L("You go back to Basic. Your records are never lost or locked, and anything you already downloaded is yours. A new package starts the day after the current one ends, so no day is paid twice. Staff sign-ins pause until Premium is renewed.", "Unarudi Msingi. Kumbukumbu zako hazipotei wala hazifungwi, na ulichopakua tayari ni chako. Kifurushi kipya kinaanza siku baada ya cha sasa kuisha, hivyo hakuna siku inayolipiwa mara mbili. Kuingia kwa wafanyakazi kunasitishwa hadi Premium ihuishwe.")}</p>
       {pay && (
         <Modal title={`${tl(pay)} · ${money(pay.price)}`} onClose={() => setPay(null)}>
+          {!result && <p className="small mb">{adds(pay, all)} {L("From", "Kuanzia")} <b>{fmtDate(startsOn)}</b> {L("to", "hadi")} <b>{fmtDate(addDays(startsOn, (PERIOD_DAYS[pay.period] || 30) - 1))}</b>.</p>}
           {!result && (
             <div className="form">
               <Field label={L("Pay with", "Lipa kwa")}><Chips value={method} onChange={setMethod} options={[{ value: "mobile", label: L("Mobile money", "Pesa ya simu") }, { value: "bank", label: L("Bank", "Benki") }, { value: "wallet", label: L("Wallet", "Pochi") }]} /></Field>

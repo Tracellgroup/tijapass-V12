@@ -5,7 +5,9 @@ import { myOrg } from "./lib/access.js";
 import { L, tl } from "./lib/i18n.js";
 import { useStore } from "./lib/store.jsx";
 import { Shell } from "./ui/Shell.jsx";
-import { MENUS, homeFor } from "./ui/menus.js";
+import { MENUS, homeFor, routeAllowedFor } from "./ui/menus.js";
+import { hasFeature } from "./core/billing.js";
+import { today as todayOf } from "./core/util.js";
 import SignIn from "./screens/SignIn.jsx";
 import Home, { Activity, RatingScreen, Reports } from "./screens/business/Home.jsx";
 import Record from "./screens/business/Record.jsx";
@@ -50,11 +52,13 @@ export default function App() {
   const { state, user, route, params, go } = useStore();
   const home = user ? homeFor(user.role) : "";
   const r = ROUTES[route];
-  const allowed = user && r && r.roles.includes(user.role);
+  const allowed = user && r && r.roles.includes(user.role) && routeAllowedFor(user, route);
   useEffect(() => {
     if (user && route && !allowed) go(home);
   }, [user, route, allowed, home, go]);
   if (!user) return <SignIn />;
+  // Staff sign-ins pause when the business's Premium ends (11 Nov); nothing is deleted.
+  if (user.member && !hasFeature(state, state.businesses.find((b) => b.id === user.businessId), "team", todayOf(state))) return <StaffPaused />;
   const org = myOrg(state, user);
   if ((user.role === "fi" || user.role === "supplier") && org?.status !== "approved") return <PendingApproval />;
   const id = allowed ? route : home;
@@ -74,3 +78,13 @@ export default function App() {
   );
 }
 
+function StaffPaused() {
+  const { signOut } = useStore();
+  return (
+    <div className="signin-wrap"><div className="signin-main"><div className="card stack">
+      <h1>{L("Staff sign-in paused", "Kuingia kwa mfanyakazi kumesitishwa")}</h1>
+      <p>{L("The business's Premium package has ended, so staff sign-ins are paused. All records are safe. Ask the owner to renew Premium.", "Kifurushi cha Premium cha biashara kimeisha, hivyo kuingia kwa wafanyakazi kumesitishwa. Kumbukumbu zote ziko salama. Mwombe mmiliki ahuishe Premium.")}</p>
+      <button className="btn primary" onClick={signOut}>{L("Sign out", "Toka")}</button>
+    </div></div></div>
+  );
+}

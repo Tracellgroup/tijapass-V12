@@ -7,7 +7,7 @@ The web MVP is the **reference design** for the Stage 2 controlled live pilot (s
 | Item (spec tab 2, sign-off) | Where |
 |---|---|
 | V12 code with a README on how to run it and its tests | This repository; [README.md](README.md) |
-| Rule modules as plain JavaScript with their tests | `src/core/*.js` (no screen code) and `tests/*.test.js` (`npm test`, 86 tests) |
+| Rule modules as plain JavaScript with their tests | `src/core/*.js` (no screen code) and `tests/*.test.js` (`npm test`, 94 tests) |
 | Chart of accounts and ready-phrase mapping table | [docs/ACCOUNTING_MAP.md](docs/ACCOUNTING_MAP.md) (generated from `src/core/kinds.js`) |
 | All Kiswahili and English text in one translation file | [docs/translations.csv](docs/translations.csv) (`npm run extract-text`) |
 | AI instructions with sample inputs and expected outputs | [docs/AI_PROMPTS.md](docs/AI_PROMPTS.md); source `netlify/functions/ai/prompts.mjs` |
@@ -26,7 +26,8 @@ The web MVP is the **reference design** for the Stage 2 controlled live pilot (s
 | `verify.js` | "To verify" list (10 Nov) | `verifyNeeds`, `verifySignals`, `SIGNALS`, `verifyQueue`: what each business still needs checked and in what order |
 | `people.js` | Identity and owners (29 Oct) | `pinProblem`, `PIN_LOCK`, `dobBounds`, `dobProblem`, `ageOn`, `validNida`, `ownersOf`, `mainOwner`, `syncProfile`, `ownershipGender`, `profileProblems`, `linkedBusinesses`, `isAdultMain` |
 | `credit.js` | Passport and lending | `isSupported`, `evidenceMix`, `score`, `GATES`, `gates`, `ratingGate`, `reconciliation`, `monthlyBase`, `affordability`, `maxInstalments`, `maxPrincipal`, `schedule`, `offerFits`, `linkedExposure` |
-| `billing.js` | Packages and FI billing | `assessmentFee`, `needsAssessment`, `fiBill`, `sponsorDiscountPct`, `canAssignTier`, `activePackage` |
+| `billing.js` | Packages and FI billing; what each business package gives (11 Nov) | `assessmentFee`, `needsAssessment`, `fiBill`, `sponsorDiscountPct`, `canAssignTier`, `activePackage`, `FREE_BENEFITS`, `FEATURES`, `PACKAGE_FEATURES`, `hasFeature`, `TEAM_MAX` |
+| `analysis.js` | 12-month trend and financial analysis (11 Nov) | `monthlySeries`, `monthComparison`, `keyRatios`, `trendFindings` |
 | `kpi.js` | BOT KPIs and privacy (minimum group, minimum cell, complementary suppression) | `computeKpis`, `filterBusinesses`, `kpiCsv` |
 | `statements.js` | Statement parsing and checks | `rowsToLines`, `pdfTextToLines`, `checkStatement`, `matchExisting`, `needsExplanation` |
 | `reader.js` | Rules reader (AI fallback) | `readDescription`, `parseAmount`, `wordsToNumber` |
@@ -78,6 +79,8 @@ Screenshots for every menu item are in `docs/guide-screenshots.zip` (English `-e
 19. **Own figures count at once (10 Nov)**: a saved starting position and a new account's starting balance count immediately, marked "not verified"; Data Admin verifies later from the "To verify" list (asked for a check first, then loan interest). Loans still need the starting position verified (reconciled gate).
 20. **Money out (10 Nov, D1)**: nothing can leave an account beyond what it holds on that date and every later day; paying back more than is owed (customers, suppliers, loans) is refused.
 21. **Settings and prices (10 Nov, D6)**: a System Admin proposes, a different Super user approves (`proposeConfig`, `decideConfig`).
+22. **Business package benefits (11 Nov, closes open question 2)**: Basic (free): recording, daily close, on-screen reports, credit passport, loan requests, supplier quotes, help. Day pass, Weekly and Monthly (same benefits, different length): PDF statements, statement upload, 12-month trend. Premium: all of those plus financial analysis (key ratios and trends), up to 3 staff sign-ins, a faster TijaPass check (moves up "To verify", never changes the rating) and priority support. The benefits are fixed in `PACKAGE_FEATURES`; System Admin sets prices and the "choose this if" line only. When a package ends the business goes back to Basic: nothing is lost; staff sign-ins pause.
+23. **Staff sign-ins (11 Nov)**: a staff member has their own phone and PIN (set with the phone code on first sign-in), records and closes the day, sees reports only if the owner allows; only the owner changes the profile, money accounts, starting position, loans, consent and packages (`addMember`, `updateMember`, `removeMember`). The PDF lock is on screen only (the browser's own print menu still prints a page with the figures hidden); Stage 2 should generate PDFs on the server.
 
 ## Known limitations of the web MVP
 

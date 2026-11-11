@@ -8,7 +8,9 @@ import { ACCOUNTS } from "../../core/kinds.js";
 import { EDUCATION, LEGAL_FORMS, MAX_MONTHS_OPERATING, mainOwner, normPhone, ownersOf, validEmail, validPhone } from "../../core/people.js";
 import { BUSINESS_TYPES, REGIONS, SECTORS } from "../../core/seed.js";
 import { daysBetween, sum, today } from "../../core/util.js";
-import { PROFILE_LABELS, addChannel, changeProfile, confirmOwner, requestCheck, requestCloseChannel, setConsent } from "../../lib/actions.js";
+import { TEAM_MAX, hasFeature } from "../../core/billing.js";
+import { LockedCard } from "./Benefits.jsx";
+import { PROFILE_LABELS, addChannel, addMember, removeMember, teamOf, updateMember, changeProfile, confirmOwner, requestCheck, requestCloseChannel, setConsent } from "../../lib/actions.js";
 import { myBusiness } from "../../lib/access.js";
 import { getLocation } from "../../lib/files.js";
 import { L, tl } from "../../lib/i18n.js";
@@ -312,6 +314,50 @@ function ConsentCard({ business }) {
   );
 }
 
+// Staff sign-ins (Premium, 11 Nov): up to 3 staff with their own phone and PIN.
+function TeamCard({ business }) {
+  const { state, user } = useStore();
+  const act = useAction();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [reports, setReports] = useState(false);
+  const [remove, setRemove] = useState(null);
+  const team = teamOf(state, business.id);
+  const on = hasFeature(state, business, "team", today(state));
+  if (!on && !team.length) return <LockedCard feature="team" />;
+  const add = () => act((d) => addMember(d, user, business.id, { name, phone, reports }), L("Staff member added", "Mfanyakazi ameongezwa")) && (setName(""), setPhone(""), setReports(false));
+  return (
+    <div className="stack">
+      {!on && <p className="notice warn"><b>{L("Staff sign-ins are paused", "Kuingia kwa wafanyakazi kumesitishwa")}</b>{L("Premium has ended. Your staff cannot sign in until you renew it; nothing they recorded is lost.", "Premium imeisha. Wafanyakazi wako hawawezi kuingia hadi uihuishe; hakuna walichoandika kinachopotea.")}</p>}
+      <Card title={`${L("Staff sign-ins", "Wafanyakazi wanaoingia")} (${team.length}/${TEAM_MAX})`}>
+        <p className="small muted mb">{L("Staff record money and close the day with their own phone and PIN. Every entry shows who made it. Only you change the profile, money accounts, loans and packages.", "Wafanyakazi wanaandika pesa na kufunga siku kwa simu na PIN zao. Kila muamala unaonyesha aliyeuandika. Wewe pekee ndiye hubadilisha wasifu, akaunti za pesa, mikopo na vifurushi.")}</p>
+        {!team.length && <p className="muted small">{L("No staff added yet.", "Bado hujaongeza mfanyakazi.")}</p>}
+        <div className="list">
+          {team.map((m) => (
+            <div key={m.id} className="item">
+              <div className="grow"><b>{m.name}</b><div className="small muted">{m.login} · {m.pin ? L("PIN set", "PIN imewekwa") : L("Has not set a PIN yet", "Bado hajaweka PIN")}</div></div>
+              <label className="check small"><input type="checkbox" checked={!!m.reports} onChange={(e) => act((d) => updateMember(d, user, m.id, { reports: e.target.checked }), L("Saved", "Imehifadhiwa"))} />{L("Can see reports", "Anaweza kuona ripoti")}</label>
+              <button className="btn small danger" onClick={() => setRemove(m)}>{L("Remove", "Ondoa")}</button>
+            </div>
+          ))}
+        </div>
+      </Card>
+      {on && team.length < TEAM_MAX && (
+        <Card title={L("Add a staff member", "Ongeza mfanyakazi")}>
+          <div className="form two">
+            <Field label={L("Full name", "Jina kamili")}><Text value={name} onChange={setName} maxLength={60} /></Field>
+            <Field label={L("Their own phone number", "Namba yao ya simu")}><Text value={phone} onChange={setPhone} inputMode="tel" placeholder="0712 345 678" /></Field>
+          </div>
+          <label className="check mt"><input type="checkbox" checked={reports} onChange={(e) => setReports(e.target.checked)} />{L("Can see reports (sales, costs and profit)", "Anaweza kuona ripoti (mauzo, gharama na faida)")}</label>
+          <p className="small muted mt">{L("They sign in with this phone: on first sign-in they tap \"Forgot my PIN\" and set their own PIN with the code sent to them.", "Wanaingia kwa simu hii: mara ya kwanza wanabonyeza \"Nimesahau PIN yangu\" na kuweka PIN yao kwa namba ya uthibitisho waliyotumiwa.")}</p>
+          <button className="btn primary mt" disabled={name.trim().length < 5 || !validPhone(phone)} onClick={add}><Plus size={18} />{L("Add", "Ongeza")}</button>
+        </Card>
+      )}
+      {remove && <Confirm title={L("Remove this staff member?", "Ondoa mfanyakazi huyu?")} body={`${remove.name}: ${L("they will no longer be able to sign in. What they recorded stays.", "hataweza kuingia tena. Alichoandika kinabaki.")}`} okLabel={L("Remove", "Ondoa")} danger onOk={() => { act((d) => removeMember(d, user, remove.id), L("Removed", "Ameondolewa")); setRemove(null); }} onClose={() => setRemove(null)} />}
+    </div>
+  );
+}
+
 export default function Profile() {
   const { state, user, params } = useStore();
   const b = myBusiness(state, user);
@@ -320,12 +366,13 @@ export default function Profile() {
   return (
     <div className="stack">
       <div className="between"><RatingBadge business={b} big /><span className="small muted">{L("Your officer", "Afisa wako")}: <b>{officer?.name || L("being assigned", "anapangwa")}</b></span></div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: "details", label: L("My details", "Taarifa zangu") }, { value: "owners", label: L("Owners", "Wamiliki") }, { value: "accounts", label: L("Money accounts", "Njia za pesa") }, { value: "opening", label: L("Starting position", "Hali ya kuanzia") }, { value: "consent", label: L("Consent", "Ridhaa") }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ value: "details", label: L("My details", "Taarifa zangu") }, { value: "owners", label: L("Owners", "Wamiliki") }, { value: "accounts", label: L("Money accounts", "Njia za pesa") }, { value: "opening", label: L("Starting position", "Hali ya kuanzia") }, { value: "consent", label: L("Consent", "Ridhaa") }, { value: "team", label: L("Staff", "Wafanyakazi") }]} />
       {tab === "details" && <><ProfileDetails business={b} /><QuickDetails business={b} /><ApprovalChanges business={b} /></>}
       {tab === "owners" && <OwnersEditor business={b} />}
       {tab === "accounts" && <MoneyAccounts business={b} />}
       {tab === "opening" && <StartingPosition business={b} />}
       {tab === "consent" && <ConsentCard business={b} />}
+      {tab === "team" && <TeamCard business={b} />}
     </div>
   );
 }

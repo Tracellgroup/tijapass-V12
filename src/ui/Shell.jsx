@@ -8,7 +8,7 @@ import { ROLE_NAMES, businessesInScope, myBusiness, myNotifications, myOrg } fro
 import { L, tl } from "../lib/i18n.js";
 import { useStore } from "../lib/store.jsx";
 import { fmtDate, fmtDateTime } from "./components.jsx";
-import { MENUS } from "./menus.js";
+import { MENUS, menuFor } from "./menus.js";
 
 function isoWeek(iso) {
   const d = new Date(`${iso}T12:00:00`);
@@ -126,7 +126,7 @@ export function Shell({ title, counts = {}, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [bell, setBell] = useState(false);
   useTimedAlerts();
-  const menu = MENUS[user.role] || [];
+  const menu = menuFor(user);
   const unread = useMemo(() => myNotifications(state, user).filter((n) => !n.readBy?.includes(user.id)).length, [state.notifications, user]); // eslint-disable-line react-hooks/exhaustive-deps
   const b = myBusiness(state, user);
   const org = myOrg(state, user);

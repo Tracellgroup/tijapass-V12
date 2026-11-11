@@ -2,7 +2,7 @@
 
 TijaPass helps small Tanzanian businesses (Business / Mjasiriamali) record money in and out in plain words, close each day by counting their money, get a monthly **TijaPass Records Rating** from their officer, and build a credit passport that lenders see only with consent. Lenders assess and lend, suppliers quote and deliver, TijaPass Admin supervises, and report users (BOT and others) see aggregated, de-identified KPIs.
 
-This repository is the **V12 web MVP**, version 12.0.0 (the V10 build with the pre-live upgrades of 29 October and the review fixes of 10 November 2026): a single-page React app with **dummy data only**, built to test design, flow, rules and look before the native pilot app is developed. It implements the *TijaPass V10 Master Functional Specification* (tab 1 shared requirements, tab 2 web MVP, tab 4 acceptance-test matrix), including the revisions agreed on 27 and 29 October 2026. The specification keeps its V10 name; V12 is this release of it.
+This repository is the **V12 web MVP**, version 12.1.0 (the V10 build with the pre-live upgrades of 29 October, the review fixes of 10 November and the package benefits of 11 November 2026): a single-page React app with **dummy data only**, built to test design, flow, rules and look before the native pilot app is developed. It implements the *TijaPass V10 Master Functional Specification* (tab 1 shared requirements, tab 2 web MVP, tab 4 acceptance-test matrix), including the revisions agreed on 27 and 29 October 2026. The specification keeps its V10 name; V12 is this release of it.
 
 > Test version: no real money, no real security, data lives in the browser. Never enter real passwords, PINs or ID numbers.
 
@@ -13,7 +13,7 @@ Requires Node.js 18 or later (20 recommended).
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 86 rule and action tests
+npm test           # 94 rule and action tests
 npm run build      # production build into dist/
 npm run preview    # serve the build at http://localhost:4173
 ```

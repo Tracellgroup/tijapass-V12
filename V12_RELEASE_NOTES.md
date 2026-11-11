@@ -2,6 +2,18 @@
 
 V12 is the V10 web MVP with the pre-live upgrades of 29 October 2026, deployed as its own site. Built from the *TijaPass V10 Master Functional Specification* (tabs 1 and 2; tab 4 is the acceptance-test matrix). It is a new code base in the V9 look (navy #071B3D, orange #F86C12, card layout); V9's repository, site and data are untouched. Each line gives the requirement ID and where it lives.
 
+## Revisions of 11 November 2026 (package benefits, version 12.1.0)
+
+Until now the paid business packages named no benefits ("Premium features") and paying unlocked nothing. Decided with TFL on 11 Nov (closes open question 2):
+
+| Package | Gives | Where |
+|---|---|---|
+| Basic (free) | Recording by typing or voice with no limit, daily close, on-screen reports, credit passport, loan requests, supplier quotes, help | unchanged |
+| Day pass 500, Weekly 1,500, Monthly 5,000 | Everything in Basic, plus PDF statements, bank and mobile money statement upload, 12-month trend and month comparison | `billing.js` `PACKAGE_FEATURES`; Reports, Record |
+| Premium 10,000 a month | Everything in Monthly, plus financial analysis (key ratios and trends in plain words), up to 3 staff sign-ins, faster TijaPass check, priority support | `analysis.js`; Reports → Financial analysis; Profile → Staff; `verify.js`; Queries |
+
+The Packages screen now shows on each card what it adds, for how long and who it is for, a table of every benefit, and what happens when a package ends. Locked features say which packages include them, with one tap to the cheapest. Benefits are enforced by the rules (`hasFeature`), not only the screens. `tests/packages.test.js` (8 tests) and walk-through t11 prove it.
+
 ## Revisions of 10 November 2026 (field-by-field review, version 12.0.0)
 
 From TFL's tests of V12, a review of every field and rule (69 issues) and the confirmed findings of an outside audit. Decisions: D1 refuse money out above the balance; D2 entries after today's close go to Data Admin as corrections; D3 NIDA optional until a loan; D4 NIDA must match the date of birth; D5 business address required; D6 settings and prices need a second person. And, decided on 9 Nov: the business's own figures count at once, marked "not verified", and staff verify them from a priority list. `tests/review.test.js` (22 tests) proves each fix.

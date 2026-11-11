@@ -1,7 +1,7 @@
 // App state: one object kept in browser storage under "tijapass-v12" (web MVP only).
 // The native build replaces this with the server API; the domain actions stay the same.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { SCHEMA_VERSION, initialState } from "../core/seed.js";
+import { DEFAULT_PACKAGES, SCHEMA_VERSION, initialState } from "../core/seed.js";
 import { syncProfile } from "../core/people.js";
 import { today } from "../core/util.js";
 import { getLang, setLang as setLangGlobal } from "./i18n.js";
@@ -36,6 +36,13 @@ function migrate(s) {
   }
   // 29 Oct: PINs became 4 digits. Loaded test businesses get the test PIN; anyone else is asked to reset theirs.
   for (const u of s.users || []) if (u.role === "business" && u.testData && String(u.pin).length !== 4) u.pin = "2468";
+  // 11 Nov: each business package says who it is for; its benefits come from the rules (PACKAGE_FEATURES).
+  for (const p of s.packages?.business || []) {
+    const def = DEFAULT_PACKAGES.business.find((x) => x.id === p.id);
+    if (def && !p.forEn) { p.forEn = def.forEn; p.forSw = def.forSw; }
+    delete p.featuresEn;
+    delete p.featuresSw;
+  }
   if (!s.users.some((u) => u.id === "U-SUPER2")) s.users.push({ id: "U-SUPER2", role: "super", name: "Super user 2", login: "super2@tijapass.test", active: true, test: true });
   return s;
 }

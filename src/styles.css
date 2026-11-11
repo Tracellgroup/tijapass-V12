@@ -257,3 +257,23 @@ table.t tr.sub td { font-weight: 700; background: #f8fafd; }
 .owner-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fbfcfe; }
 .phone-code .test-code { background: #fff7ec; border: 1px dashed #f3b26b; border-radius: 8px; padding: 6px 10px; display: inline-block; margin-bottom: 6px; }
 .changed-row td { background: #fff7ec; }
+/* Package benefits (11 Nov) */
+.lock-card { border: 1px dashed #c9d6e6; background: #f8fbff; }
+.lock-card .lock-head { display: flex; gap: 10px; align-items: flex-start; }
+.bars { display: grid; gap: 6px; }
+.bars .bar-row { display: grid; grid-template-columns: 72px 1fr 110px; gap: 8px; align-items: center; font-size: 13px; }
+.bars .bar-track { background: #eef3f9; border-radius: 6px; height: 14px; overflow: hidden; }
+.bars .bar-track i { display: block; height: 100%; border-radius: 6px; }
+.ratio { border-left: 5px solid var(--soft2); }
+.ratio.good { border-left-color: var(--green); }
+.ratio.watch { border-left-color: #e8a33d; }
+.ratio.act { border-left-color: var(--red); }
+.ratio .big { font-family: Manrope, Inter, sans-serif; font-size: 26px; font-weight: 800; }
+.cmp { table-layout: fixed; width: 100%; }
+.cmp col.feat { width: 46%; }
+table.t.cmp td, table.t.cmp th { text-align: center; white-space: normal; vertical-align: top; overflow-wrap: anywhere; }
+table.t.cmp th { font-size: 11px; text-transform: none; letter-spacing: 0; overflow-wrap: normal; word-break: keep-all; }
+table.t.cmp td:first-child, table.t.cmp th:first-child { text-align: left; }
+.pkg-card.on { outline: 2px solid var(--green); }
+@media print { .locked-print .table-wrap, .locked-print h2 { display: none !important; } }
+@media (max-width: 560px) { .bars .bar-row { grid-template-columns: 58px 1fr 92px; font-size: 12px; } }

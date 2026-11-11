@@ -73,11 +73,12 @@ const fiPkg = (id, en, sw, monthly, perAssessment) => ({ id, en, sw, monthly, an
 
 export const DEFAULT_PACKAGES = {
   business: [
-    { id: "basic", en: "Basic", sw: "Msingi", price: 0, period: "free", featuresEn: ["Unlimited recording, free forever", "Daily close and reports", "Credit passport"], featuresSw: ["Kuandika bila kikomo, bure daima", "Kufunga siku na ripoti", "Pasipoti ya mkopo"] },
-    { id: "day", en: "Day pass", sw: "Pasi ya siku", price: 500, period: "day", featuresEn: ["Everything in Basic", "Premium features for one day"], featuresSw: ["Vyote vya Msingi", "Huduma za ziada kwa siku moja"] },
-    { id: "week", en: "Weekly", sw: "Wiki", price: 1500, period: "week", featuresEn: ["Everything in Basic", "Premium features for 7 days"], featuresSw: ["Vyote vya Msingi", "Huduma za ziada kwa siku 7"] },
-    { id: "month", en: "Monthly", sw: "Mwezi", price: 5000, period: "month", featuresEn: ["Everything in Basic", "Premium features for a month"], featuresSw: ["Vyote vya Msingi", "Huduma za ziada kwa mwezi"] },
-    { id: "premium", en: "Premium", sw: "Premium", price: 10000, period: "month", featuresEn: ["Everything in Monthly", "Priority support"], featuresSw: ["Vyote vya Mwezi", "Msaada wa kipaumbele"] }
+    // Benefits per package are fixed in core/billing.js (PACKAGE_FEATURES); System Admin sets prices and the "choose this if" line.
+    { id: "basic", en: "Basic", sw: "Msingi", price: 0, period: "free", forEn: "You want to keep simple records and build your credit passport", forSw: "Unataka kuweka kumbukumbu rahisi na kujenga pasipoti yako ya mkopo" },
+    { id: "day", en: "Day pass", sw: "Pasi ya siku", price: 500, period: "day", forEn: "You need a statement for a bank, TRA or a tender today", forSw: "Unahitaji taarifa kwa benki, TRA au zabuni leo" },
+    { id: "week", en: "Weekly", sw: "Wiki", price: 1500, period: "week", forEn: "You are catching up on old bank or mobile money statements", forSw: "Unafidia taarifa za zamani za benki au pesa ya simu" },
+    { id: "month", en: "Monthly", sw: "Mwezi", price: 5000, period: "month", forEn: "You upload statements and print reports every month", forSw: "Unapakia taarifa na kuchapisha ripoti kila mwezi" },
+    { id: "premium", en: "Premium", sw: "Premium", price: 10000, period: "month", forEn: "You want to understand your numbers, have staff who record, or plan to borrow soon", forSw: "Unataka kuelewa takwimu zako, una wafanyakazi wanaoandika, au unapanga kukopa hivi karibuni" }
   ],
   fi: [fiPkg("starter", "Starter", "Mwanzo", 500000, 3000), fiPkg("growth", "Growth", "Ukuaji", 2000000, 1500), fiPkg("enterprise", "Enterprise", "Biashara kubwa", 6000000, 500)],
   sponsorTiers: [

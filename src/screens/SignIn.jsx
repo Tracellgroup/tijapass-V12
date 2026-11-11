@@ -180,7 +180,7 @@ export default function SignIn() {
                     return (
                       <button key={u.id} className="item" onClick={() => signIn(u.id)}>
                         <Building2 size={18} />
-                        <div className="grow"><b>{b?.profile.businessName}</b><div className="small muted">{u.name} · {u.login}</div></div>
+                        <div className="grow"><b>{b?.profile.businessName}</b><div className="small muted">{u.name}{u.member ? ` (${L("staff", "mfanyakazi")})` : ""} · {u.login}</div></div>
                       </button>
                     );
                   })}

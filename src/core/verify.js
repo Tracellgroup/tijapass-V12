@@ -1,6 +1,7 @@
 // "To verify" list (decided 9 Nov 2026). With a million businesses, TijaPass cannot visit or approve each one
 // before it starts. Businesses work at once with figures marked "not verified"; Data Admin, Super users and
 // officers see how many are not verified and which to check first: those who asked for a check or want a loan.
+import { hasFeature } from "./billing.js";
 import { ownersOf } from "./people.js";
 import { daysBetween } from "./util.js";
 
@@ -21,13 +22,14 @@ export function verifyNeeds(state, b) {
 export const SIGNALS = {
   askedCheck: { weight: 100, en: "Asked for a check", sw: "Ameomba ukaguzi" },
   loanRequest: { weight: 80, en: "Has a loan request", sw: "Ana ombi la mkopo" },
+  premium: { weight: 40, en: "Premium: faster check", sw: "Premium: ukaguzi wa haraka" },
   lenderConsent: { weight: 50, en: "Shared records with a lender", sw: "Ameshiriki kumbukumbu na mkopeshaji" },
   needsFinance: { weight: 30, en: "Said they need finance", sw: "Amesema anahitaji mkopo" },
   bigPosition: { weight: 10, en: "Large starting position", sw: "Hali kubwa ya kuanzia" }
 };
 const LOAN_OPEN = ["requested", "offered", "accepted"];
 
-export function verifySignals(state, b) {
+export function verifySignals(state, b, todayISO) {
   const out = [];
   if (b.checkRequest && !b.checkRequest.doneAt) out.push("askedCheck");
   if ((state.loans || []).some((l) => l.businessId === b.id && LOAN_OPEN.includes(l.status))) out.push("loanRequest");
@@ -37,6 +39,8 @@ export function verifySignals(state, b) {
   const v = b.opening?.values || {};
   const total = Object.values(v.channels || {}).reduce((t, x) => t + Number(x || 0), 0) + ["inventory", "receivables", "equipment", "groupSavings"].reduce((t, k) => t + Number(v[k] || 0), 0);
   if (total >= 10000000) out.push("bigPosition");
+  // Premium moves a business up the list (11 Nov); it never changes the rating itself.
+  if (todayISO && hasFeature(state, b, "fastCheck", todayISO)) out.push("premium");
   return out;
 }
 
@@ -47,7 +51,7 @@ export function verifyQueue(state, user, todayISO) {
   const live = (state.businesses || []).filter((b) => b.status !== "archived" && (rank >= 2 || b.officerId === user?.id));
   const rows = live.map((b) => {
     const needs = verifyNeeds(state, b);
-    const signals = verifySignals(state, b);
+    const signals = verifySignals(state, b, todayISO);
     const since = b.checkRequest && !b.checkRequest.doneAt ? b.checkRequest.at : b.opening?.firstSavedAt || b.createdAt || b.startDate;
     const waiting = Math.max(0, daysBetween(String(since || todayISO).slice(0, 10), todayISO));
     const priority = signals.reduce((t, k) => t + SIGNALS[k].weight, 0) + Math.min(30, waiting);

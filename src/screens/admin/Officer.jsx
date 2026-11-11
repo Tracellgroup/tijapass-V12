@@ -140,7 +140,7 @@ function IdentityCard({ business }) {
   const { state, user } = useStore();
   const act = useAction();
   const [modal, setModal] = useState(null);
-  const u = state.users.find((x) => x.role === "business" && x.businessId === business.id);
+  const u = state.users.find((x) => x.role === "business" && x.businessId === business.id && !x.member);
   const owners = ownersOf(business.profile);
   const linked = linkedBusinesses(state, business);
   const k = business.kyc || { status: "pending" };

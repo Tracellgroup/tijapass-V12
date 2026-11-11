@@ -1,7 +1,7 @@
 // System Admin screens (ADM-03, ADM-04, PKG-01 to PKG-04, BOT-08, ROLE-05) and web MVP test tools.
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { annualFromMonthly, canAssignTier, sponsorCounts } from "../../core/billing.js";
+import { FEATURES, annualFromMonthly, canAssignTier, featuresOf, sponsorCounts } from "../../core/billing.js";
 import { DEFAULT_SETTINGS } from "../../core/seed.js";
 import { money, today, uid } from "../../core/util.js";
 import { buildTestData, loadTestData, removeTestData } from "../../lib/testData.js";
@@ -96,11 +96,12 @@ export function AdminPackages() {
     <div className="stack">
       <PendingConfig kind="prices" />
       <Card title={L("Business packages", "Vifurushi vya biashara")}>
-        <p className="small muted mb">{L("Seen only by businesses. Recording is always free on Basic.", "Vinaonekana na biashara tu. Kuandika ni bure daima kwenye Msingi.")}</p>
+        <p className="small muted mb">{L("Seen only by businesses. Recording is always free on Basic. What each package gives is fixed in the app, so a package always unlocks what its card says; you set the price and the \"choose this if\" line.", "Vinaonekana na biashara tu. Kuandika ni bure daima kwenye Msingi. Kila kifurushi kinachotoa kimewekwa kwenye programu, hivyo kifurushi kinafungua kila kadi yake inachosema; wewe unaweka bei na mstari wa \"chagua hiki ikiwa\".")}</p>
         {pk.business.map((p, i) => (
           <div key={p.id} className="form two mb">
             <Field label={`${tl(p)} · ${L("price (TZS)", "bei (TZS)")}`}><AmountInput value={p.price} onChange={(v) => setBiz(i, "price", Number(v) || 0)} disabled={p.id === "basic"} /></Field>
-            <Field label={L("Features (one per line, English | Kiswahili)", "Huduma (moja kwa mstari, Kiingereza | Kiswahili)")}><textarea className="input" rows={2} value={p.featuresEn.map((x, k) => `${x} | ${p.featuresSw[k] || ""}`).join("\n")} onChange={(e) => { const rows = e.target.value.split("\n"); setPk({ ...pk, business: pk.business.map((q, j) => (j === i ? { ...q, featuresEn: rows.map((r) => r.split("|")[0].trim()), featuresSw: rows.map((r) => (r.split("|")[1] || "").trim()) } : q)) }); }} /></Field>
+            <Field label={L("Choose this if… (English | Kiswahili)", "Chagua hiki ikiwa… (Kiingereza | Kiswahili)")}><Text value={`${p.forEn || ""} | ${p.forSw || ""}`} maxLength={300} onChange={(v) => { const [en, sw] = v.split("|"); setPk({ ...pk, business: pk.business.map((q, j) => (j === i ? { ...q, forEn: (en || "").trim(), forSw: (sw || "").trim() } : q)) }); }} /></Field>
+            <p className="small muted" style={{ gridColumn: "1 / -1" }}>{L("Gives", "Inatoa")}: {featuresOf(p.id).length ? featuresOf(p.id).map((f) => tl(FEATURES[f])).join(" · ") : L("recording, daily close, on-screen reports, credit passport", "kuandika, kufunga siku, ripoti kwenye skrini, pasipoti ya mkopo")}</p>
           </div>
         ))}
       </Card>

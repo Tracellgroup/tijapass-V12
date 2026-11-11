@@ -64,3 +64,40 @@ export function activePackage(state, business, todayISO) {
   const subs = (state.subscriptions || []).filter((s) => s.ownerId === business.id && s.status === "active" && s.from <= todayISO && s.to >= todayISO);
   return subs.length ? subs[subs.length - 1].packageId : "basic";
 }
+
+// ---------------------------------------------------------------- What each business package gives (decided 11 Nov 2026)
+// Recording, the daily close, on-screen reports, the credit passport, loan requests and supplier quotes stay free so
+// every business can join; paid packages add things that save time or produce a document someone else asks for.
+// The benefits are fixed here, in the rules, so a package always unlocks exactly what its card says.
+export const FREE_BENEFITS = [
+  { en: "Record money in and out by typing or voice, with no limit", sw: "Andika pesa zinazoingia na kutoka kwa kuandika au sauti, bila kikomo" },
+  { en: "Close your day and see your reports on screen", sw: "Funga siku yako na uone ripoti zako kwenye skrini" },
+  { en: "Credit passport, loan requests and supplier quotes", sw: "Pasipoti ya mkopo, maombi ya mkopo na nukuu za wasambazaji" },
+  { en: "Help by WhatsApp, phone and questions", sw: "Msaada kwa WhatsApp, simu na maswali" }
+];
+export const FEATURES = {
+  pdf: { en: "Download or print your statements as PDF", sw: "Pakua au chapisha taarifa zako kama PDF", note: { en: "Income statement, balance sheet and cash flow for a bank, TRA, a tender or a landlord", sw: "Taarifa ya mapato, mali na madeni, na mtiririko wa pesa kwa benki, TRA, zabuni au mwenye nyumba" } },
+  upload: { en: "Upload bank and mobile money statements", sw: "Pakia taarifa za benki na pesa ya simu", note: { en: "The lines are read for you instead of typed one by one", sw: "Mistari inasomwa kwa ajili yako badala ya kuandikwa moja moja" } },
+  trend: { en: "12-month trend and month comparison", sw: "Mwenendo wa miezi 12 na kulinganisha miezi", note: { en: "Sales, costs, profit and money at the end of each month", sw: "Mauzo, gharama, faida na pesa mwishoni mwa kila mwezi" } },
+  analysis: { en: "Financial analysis: key ratios and trends", sw: "Uchambuzi wa fedha: uwiano muhimu na mwenendo", note: { en: "Margins, stock, customer and cash days, debt, growth, explained in plain words with what to do", sw: "Faida kwa mauzo, stoku, siku za wateja na pesa, madeni, ukuaji, kwa maneno rahisi na cha kufanya" } },
+  team: { en: "Up to 3 staff sign-ins", sw: "Hadi wafanyakazi 3 kuingia" },
+  fastCheck: { en: "Faster TijaPass check of your records", sw: "Ukaguzi wa haraka wa kumbukumbu zako na TijaPass", note: { en: "You move up the list to be checked; it never changes your rating", sw: "Unapanda kwenye orodha ya kukaguliwa; haibadilishi kiwango chako" } },
+  prioritySupport: { en: "Priority support, answered the same day", sw: "Msaada wa kipaumbele, unajibiwa siku hiyohiyo" }
+};
+FEATURES.team.note = { en: "Each has their own phone and PIN and can record and close the day; only the owner changes the profile, money accounts, loans and packages", sw: "Kila mmoja ana simu na PIN yake na anaweza kuandika na kufunga siku; mmiliki pekee ndiye hubadilisha wasifu, akaunti za pesa, mikopo na vifurushi" };
+// Short names for the package cards ("Everything in Basic, plus …").
+const SHORT = { pdf: ["PDF statements", "taarifa za PDF"], upload: ["statement upload", "kupakia taarifa"], trend: ["the 12-month trend", "mwenendo wa miezi 12"], analysis: ["financial analysis", "uchambuzi wa fedha"], team: ["3 staff sign-ins", "wafanyakazi 3 kuingia"], fastCheck: ["a faster TijaPass check", "ukaguzi wa haraka wa TijaPass"], prioritySupport: ["priority support", "msaada wa kipaumbele"] };
+for (const [k, [en, sw]] of Object.entries(SHORT)) FEATURES[k].short = { en, sw };
+const PAID = ["pdf", "upload", "trend"];
+export const PACKAGE_FEATURES = { basic: [], day: PAID, week: PAID, month: PAID, premium: [...PAID, "analysis", "team", "fastCheck", "prioritySupport"] };
+export const TEAM_MAX = 3;
+
+export const featuresOf = (packageId) => PACKAGE_FEATURES[packageId] || [];
+export const hasFeature = (state, business, feature, todayISO) => !!business && featuresOf(activePackage(state, business, todayISO)).includes(feature);
+// The cheapest package that gives a feature (for "Get a Day pass" or "See Premium").
+export const cheapestWith = (state, feature) => (state.packages?.business || []).filter((p) => p.price > 0 && featuresOf(p.id).includes(feature)).sort((a, b) => a.price - b.price)[0] || null;
+// The active subscription (to show its end date).
+export function activeSubscription(state, business, todayISO) {
+  const subs = (state.subscriptions || []).filter((s) => s.ownerId === business?.id && s.status === "active" && s.from <= todayISO && s.to >= todayISO);
+  return subs[subs.length - 1] || null;
+}

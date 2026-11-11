@@ -1,7 +1,7 @@
 // Domain actions. Each takes a draft of the state (`d`), the acting user and arguments, and changes the draft.
 // Every Admin change carries a reason and lands in the audit trail (ROLE-05).
 import { availableFrom, balancesAt, channelAccount, channelBalances, channelBalance } from "../core/accounting.js";
-import { assessmentFee, needsAssessment } from "../core/billing.js";
+import { TEAM_MAX, assessmentFee, hasFeature, needsAssessment } from "../core/billing.js";
 import { GATES, gates, isSupported, offerFits, schedule } from "../core/credit.js";
 import { REASONS, isClosed, isOnTime, shouldFlag, tolerance } from "../core/dailyClose.js";
 import { KINDS, SUSPENSE_TARGETS } from "../core/kinds.js";
@@ -42,6 +42,15 @@ const nonNegative = (n) => {
 export const TEXT_MAX = { name: 60, payer: 60, reference: 40, description: 300, note: 500, message: 1000 };
 const maxLen = (v, n, what) => { if (String(v || "").length > n) fail(`${what} is too long (${n} characters at most).`); };
 const ownsBusiness = (actor, businessId) => actor?.role === "business" && actor.businessId === businessId;
+// Staff sign-ins (Premium, 11 Nov) belong to the business but act only on recording and the daily close.
+const needOwner = (actor, businessId, msg) => {
+  if (!ownsBusiness(actor, businessId)) fail(msg);
+  if (actor.member) fail("Only the business owner can do this. Ask the owner.");
+};
+const ownerOf = (actor, businessId) => ownsBusiness(actor, businessId) && !actor.member;
+// A staff sign-in works only while the business has Premium.
+const memberPaused = (d, actor, b) => actor?.member && !hasFeature(d, b, "team", today(d));
+const PAUSED = "The business's Premium package has ended, so staff sign-ins are paused. Ask the owner to renew it.";
 const findBusiness = (d, id) => d.businesses.find((x) => x.id === id) || fail("Business not found.");
 const activeChannels = (b) => b.channels.filter((c) => !c.archived);
 
@@ -151,6 +160,10 @@ export function pinSignIn(d, phone, pin) {
   const now = nowMs(d);
   if (u.pinBlocked) return err("Too many wrong PINs. Your account is blocked: ask your TijaPass officer to unlock it.");
   if (u.lockedUntil && now < u.lockedUntil) return err(`Too many wrong PINs. Try again after ${tzTimeOf(u.lockedUntil)}.`);
+  if (u.member) {
+    if (memberPaused(d, u, d.businesses.find((x) => x.id === u.businessId))) return err(PAUSED);
+    if (!u.pin) return err("Set your PIN first: tap \"Forgot my PIN\" and use the code sent to your phone.");
+  }
   if (String(u.pin).length !== 4) return err("TijaPass now uses 4-digit PINs. Tap \"Forgot my PIN\" to set a new one with a code to your phone.");
   if (String(u.pin) !== String(pin)) {
     u.failedPins = (u.failedPins || 0) + 1;
@@ -198,7 +211,7 @@ export function resetPinWithCode(d, phone, newPin, codeOk) {
   if (!codeOk) fail("Enter the code sent to your phone.");
   if (u.pinBlocked) fail("Your account is blocked: ask your TijaPass officer to unlock it first.");
   const b = d.businesses.find((x) => x.id === u.businessId);
-  const pp = pinProblem(newPin, { dob: b?.profile?.dob, phones: ownersOf(b?.profile).map((o) => o.phone) });
+  const pp = pinProblem(newPin, { dob: u.member ? null : b?.profile?.dob, phones: [...ownersOf(b?.profile).map((o) => o.phone), u.login] });
   if (pp) fail(pp.en);
   u.pin = newPin;
   u.failedPins = 0;
@@ -246,7 +259,7 @@ export function identityMissing(b) {
 
 // A co-owner confirms with the code sent to their own phone.
 export function confirmOwner(d, actor, businessId, ownerId, codeOk) {
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can confirm its owners.");
+  needOwner(actor, businessId, "Only the business can confirm its owners.");
   if (!codeOk) fail("Enter the code sent to the owner's phone.");
   const b = findBusiness(d, businessId);
   const o = b.profile.owners.find((x) => x.id === ownerId);
@@ -291,7 +304,7 @@ function checkOpeningValues(d, b, values, { complete = false } = {}) {
 export function saveOpening(d, actor, businessId, values, submit) {
   const b = findBusiness(d, businessId);
   if (b.opening?.status === "approved") throw new Error("Your starting position is verified and locked. Ask TijaPass if something must change.");
-  if (!ownsBusiness(actor, businessId)) fail("Only the business enters its starting position. An officer may explain it, but not type it.");
+  needOwner(actor, businessId, "Only the business enters its starting position. An officer may explain it, but not type it.");
   // Once saved it counts at once, marked "not verified"; it can be corrected until TijaPass verifies it.
   if (b.opening?.status === "submitted" && !submit) fail("Your starting position is already in use. Save the corrected figures instead.");
   checkOpeningValues(d, b, values, { complete: submit });
@@ -390,12 +403,12 @@ const applyProfile = (d, b, fields) => {
     b.profile[k] = v;
   }
   b.profile = syncProfile(b.profile);
-  const u = d.users.find((x) => x.role === "business" && x.businessId === b.id);
+  const u = d.users.find((x) => x.role === "business" && x.businessId === b.id && !x.member);
   if (u) { u.login = normPhone(b.profile.phone); u.name = b.profile.ownerName; }
   return before;
 };
 export function changeProfile(d, actor, businessId, changes, { phoneCodeOk = false, ownersConfirmed = false, note = "" } = {}) {
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can change its own profile.");
+  needOwner(actor, businessId, "Only the business can change its own profile.");
   const b = findBusiness(d, businessId);
   const { now, ask } = classifyProfileChange(b, changes);
   if (changes.address !== undefined && String(changes.address).trim().length < 5) fail("Write the business address or a landmark (at least 5 characters).");
@@ -430,7 +443,7 @@ export function changeProfile(d, actor, businessId, changes, { phoneCodeOk = fal
 
 // A new mobile money wallet, till or bank account can be added at once; its starting balance waits for Data Admin.
 export function addChannel(d, actor, businessId, { type, name, number = "", openingBalance = 0 }) {
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can add its money accounts.");
+  needOwner(actor, businessId, "Only the business can add its money accounts.");
   if (!["mobile", "bank"].includes(type)) fail("Choose mobile money or bank.");
   if (!String(name || "").trim()) fail("Enter the provider or bank name.");
   const amount = nonNegative(openingBalance);
@@ -457,7 +470,7 @@ export function addChannel(d, actor, businessId, { type, name, number = "", open
 }
 
 export function requestCloseChannel(d, actor, businessId, channelId) {
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can close its money accounts.");
+  needOwner(actor, businessId, "Only the business can close its money accounts.");
   const b = d.businesses.find((x) => x.id === businessId);
   const ch = b.channels.find((c) => c.id === channelId);
   if (!ch || ch.type === "cash") fail("Cash in hand cannot be closed.");
@@ -471,7 +484,7 @@ export function requestCloseChannel(d, actor, businessId, channelId) {
 
 // The business asks TijaPass to check its records (9 Nov): it moves to the top of the "To verify" list.
 export function requestCheck(d, actor, businessId, note = "") {
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can ask for a check of its own records.");
+  needOwner(actor, businessId, "Only the business can ask for a check of its own records.");
   maxLen(note, TEXT_MAX.note, "The note");
   const b = findBusiness(d, businessId);
   if (b.checkRequest && !b.checkRequest.doneAt) fail("You already asked. TijaPass will contact you.");
@@ -525,7 +538,7 @@ export function decideChange(d, actor, id, approve, reason) {
 
 export function setConsent(d, actor, businessId, fiId, granted) {
   // Only the business gives or withdraws consent, and only to an approved lender (audit VF-13).
-  if (!ownsBusiness(actor, businessId)) fail("Only the business can give or withdraw consent.");
+  needOwner(actor, businessId, "Only the business can give or withdraw consent.");
   const b = findBusiness(d, businessId);
   if (granted && !d.fis.some((f) => f.id === fiId && f.status === "approved")) fail("Choose an approved lender.");
   b.consent.fis = b.consent.fis || {};
@@ -551,6 +564,9 @@ export function addEntry(d, actor, entry, { directionConflict = false, aiRecomme
   if (isStaff(actor)) fail("TijaPass staff do not record for a business. Corrections go through reversal with a reason.");
   // A business records only its own money (audit VF-12).
   if (!ownsBusiness(actor, entry.businessId)) fail("You can record only for your own business.");
+  if (memberPaused(d, actor, b)) fail(PAUSED);
+  // Statement upload is a paid benefit (11 Nov): Day pass and up. Lines from an earlier upload can still be explained.
+  if (entry.source === "import" && !entry.importLineId && !hasFeature(d, b, "upload", today(d))) fail("Uploading statements is part of the paid packages (Day pass and up). Typing your entries stays free.");
   maxLen(entry.payer, TEXT_MAX.payer, "The name");
   maxLen(entry.reference, TEXT_MAX.reference, "The reference");
   maxLen(entry.description, TEXT_MAX.description, "The description");
@@ -704,6 +720,7 @@ export function stockAdjust(d, actor, businessId, delta, reason) {
 export function closeDay(d, actor, { businessId, from, to, counts, reasons, catchUp }) {
   const b = d.businesses.find((x) => x.id === businessId);
   if (!ownsBusiness(actor, businessId)) fail("Only the business closes its own day.");
+  if (memberPaused(d, actor, b)) fail(PAUSED);
   if (!validISODate(from) || !validISODate(to) || from > to) fail("Choose the days to close.");
   if (to > today(d)) fail("A day cannot be closed before it happens.");
   if (from < b.startDate) fail("These days are before the business joined.");
@@ -840,7 +857,8 @@ export function saveRating(d, actor, rating) {
 
 export function acknowledgeRating(d, actor, ratingId) {
   const r = d.ratings.find((x) => x.id === ratingId);
-  if (!r || !ownsBusiness(actor, r.businessId)) fail("Only the business can acknowledge its own rating.");
+  if (!r) fail("Only the business can acknowledge its own rating.");
+  needOwner(actor, r.businessId, "Only the business can acknowledge its own rating.");
   r.acknowledgedAt = nowISO(d);
   audit(d, actor, "Records Rating acknowledged", r.businessId, { after: ratingId });
 }
@@ -848,7 +866,8 @@ export function acknowledgeRating(d, actor, ratingId) {
 export function disputeRating(d, actor, ratingId, reason) {
   const r = d.ratings.find((x) => x.id === ratingId);
   // Only the business, once, within the window, saying why (9 Nov, ADM-A, audit P35).
-  if (!r || !ownsBusiness(actor, r.businessId)) fail("Only the business can dispute its own rating.");
+  if (!r) fail("Only the business can dispute its own rating.");
+  needOwner(actor, r.businessId, "Only the business can dispute its own rating.");
   if (r.status !== "final" || r.dispute) fail("This rating was already disputed.");
   if (daysBetween(r.date || today(d), today(d)) > (d.settings.disputeDays ?? 7)) fail(`A rating can be disputed within ${d.settings.disputeDays ?? 7} days.`);
   needReason(reason, 10);
@@ -888,7 +907,7 @@ export function recordRecheck(d, actor, ratingId, score, note) {
 
 // ---------------------------------------------------------------- External loans (FIN-02)
 export function declareExternalLoan(d, actor, loan) {
-  if (!ownsBusiness(actor, loan.businessId)) fail("Only the business declares its own outside loans.");
+  needOwner(actor, loan.businessId, "Only the business declares its own outside loans.");
   if (!String(loan.lender || "").trim()) fail("Enter the lender's name.");
   wholeAmount(loan.balance, "the amount still owed");
   wholeAmount(loan.instalment, "the instalment");
@@ -921,7 +940,7 @@ export function reviewExternalLoan(d, actor, id, changes, reason, archive = fals
 const consented = (b, fiId) => Boolean(b?.consent?.fis?.[fiId]?.granted);
 const OPEN_LOAN = ["requested", "offered", "accepted"];
 export function requestLoan(d, actor, loan) {
-  if (!ownsBusiness(actor, loan.businessId)) fail("Only the business requests its own loans.");
+  needOwner(actor, loan.businessId, "Only the business requests its own loans.");
   const b0 = findBusiness(d, loan.businessId);
   wholeAmount(loan.amount, "the amount");
   if (String(loan.purpose || "").trim().length < 3) fail("Say what the loan is for.");
@@ -958,7 +977,8 @@ export function requestLoan(d, actor, loan) {
 // The business may withdraw a request it no longer needs (9 Nov, FIN-B).
 export function withdrawLoan(d, actor, loanId) {
   const l = d.loans.find((x) => x.id === loanId);
-  if (!l || !ownsBusiness(actor, l.businessId)) fail("Only the business can withdraw its own request.");
+  if (!l) fail("Only the business can withdraw its own request.");
+  needOwner(actor, l.businessId, "Only the business can withdraw its own request.");
   if (!["requested", "offered"].includes(l.status)) fail("Only a request or an offer not yet accepted can be withdrawn.");
   l.status = "withdrawn";
   l.history.push({ at: nowISO(d), event: "withdrawn", by: by(actor) });
@@ -997,7 +1017,7 @@ export function makeOffer(d, actor, loanId, { fiId, product, principal, frequenc
 export function respondOffer(d, actor, loanId, accept, channelId) {
   const l = d.loans.find((x) => x.id === loanId);
   if (!l || l.status !== "offered") fail("There is no offer to answer.");
-  if (!ownsBusiness(actor, l.businessId)) fail("Only the business can accept or decline its offer.");
+  needOwner(actor, l.businessId, "Only the business can accept or decline its offer.");
   if (accept && l.type !== "asset" && !activeChannels(findBusiness(d, l.businessId)).some((c) => c.id === channelId)) fail("Choose the account to receive the money.");
   l.status = accept ? "accepted" : "declined";
   l.channelId = channelId;
@@ -1056,7 +1076,7 @@ export function disburse(d, actor, loanId) {
 
 export function payInstalment(d, actor, loanId, n, channelId) {
   const l = d.loans.find((x) => x.id === loanId);
-  if (!ownsBusiness(actor, l.businessId)) fail("Only the business pays its instalments here.");
+  needOwner(actor, l.businessId, "Only the business pays its instalments here.");
   const i = l.schedule.find((x) => x.n === n);
   if (i.paidAt) return;
   const next = l.schedule.filter((x) => !x.paidAt).sort((a, b2) => a.n - b2.n)[0];
@@ -1078,7 +1098,7 @@ export function payInstalment(d, actor, loanId, n, channelId) {
 // ---------------------------------------------------------------- Suppliers and quotes
 export function requestQuote(d, actor, q) {
   // A business or lender asks an approved supplier for itself only (9 Nov, SUP-B, audit VF-18).
-  const own = (q.requester?.type === "business" && ownsBusiness(actor, q.requester.id)) || (q.requester?.type === "fi" && actor?.role === "fi" && actor.orgId === q.requester.id);
+  const own = (q.requester?.type === "business" && ownerOf(actor, q.requester.id)) || (q.requester?.type === "fi" && actor?.role === "fi" && actor.orgId === q.requester.id);
   if (!own) fail("You can ask for quotes only for your own business or institution.");
   if (!d.suppliers.some((x) => x.id === q.supplierId && x.status === "approved")) fail("Choose an approved supplier.");
   const qty = Number(q.qty);
@@ -1102,7 +1122,7 @@ export function quoteStep(d, actor, id, event, patch = {}) {
   // Each step belongs to one side (9 Nov, SUP-A): the supplier quotes, invoices and delivers; the one who asked
   // accepts, orders, pays and confirms receipt; either side may decline before acceptance.
   const isSupplier = actor?.role === "supplier" && actor.orgId === q.supplierId;
-  const isRequester = (q.requester?.type === "business" && ownsBusiness(actor, q.requester.id)) || (q.requester?.type === "fi" && actor?.role === "fi" && actor.orgId === q.requester.id);
+  const isRequester = (q.requester?.type === "business" && ownerOf(actor, q.requester.id)) || (q.requester?.type === "fi" && actor?.role === "fi" && actor.orgId === q.requester.id);
   const SUPPLIER_STEPS = ["quoted", "invoiced", "delivered"];
   const REQUESTER_STEPS = ["accepted", "ordered", "paid", "received"];
   if (SUPPLIER_STEPS.includes(event) && !isSupplier) fail("Only the supplier can do this step.");
@@ -1123,7 +1143,7 @@ export function quoteStep(d, actor, id, event, patch = {}) {
 // ---------------------------------------------------------------- Messages, queries, quarterly
 export function sendMessage(d, actor, { threadKey, title, text, participants }) {
   // The sender must be one of the people in the conversation, or TijaPass staff (9 Nov, ADM-A).
-  const inThread = (participants || []).some((p) => (p.userId && p.userId === actor?.id) || (p.businessId && ownsBusiness(actor, p.businessId)) || (p.fiId && actor?.role === "fi" && actor.orgId === p.fiId) || (p.supplierId && actor?.role === "supplier" && actor.orgId === p.supplierId));
+  const inThread = (participants || []).some((p) => (p.userId && p.userId === actor?.id) || (p.businessId && ownerOf(actor, p.businessId)) || (p.fiId && actor?.role === "fi" && actor.orgId === p.fiId) || (p.supplierId && actor?.role === "supplier" && actor.orgId === p.supplierId));
   if (!actor || (!inThread && !isStaff(actor))) fail("You are not part of this conversation.");
   if (!String(text || "").trim()) fail("Write a message.");
   maxLen(text, TEXT_MAX.message, "The message");
@@ -1135,7 +1155,10 @@ export function createQuery(d, actor, q) {
   if (!actor) fail("Sign in first.");
   if (q.businessId && !ownsBusiness(actor, q.businessId)) fail("You can ask only about your own business.");
   maxLen(q.topic, TEXT_MAX.note, "The question");
-  d.queries.unshift({ ...q, status: "open", createdAt: nowISO(d), by: by(actor) });
+  // Premium questions are answered first, the same day (11 Nov).
+  const qb = q.businessId ? d.businesses.find((x) => x.id === q.businessId) : null;
+  const priority = !!qb && hasFeature(d, qb, "prioritySupport", today(d));
+  d.queries.unshift({ ...q, priority, status: "open", createdAt: nowISO(d), by: by(actor) });
   adminNotice(d, { en: "New help query", sw: "Swali jipya la msaada" }, { en: q.topic || "", sw: q.topic || "" }, "admin-queries");
 }
 
@@ -1154,7 +1177,7 @@ export function answerQuery(d, actor, id, answer) {
 
 export function saveQuarterly(d, actor, a) {
   // Only the business answers for itself (audit VF-14).
-  if (!ownsBusiness(actor, a.businessId)) fail("Only the business answers its own check-in.");
+  needOwner(actor, a.businessId, "Only the business answers its own check-in.");
   if (!["yes", "no"].includes(a.outsideLoan) || !["yes", "no"].includes(a.needFinance)) fail("Answer every question.");
   nonNegative(a.outsideAmount);
   nonNegative(a.needAmount);
@@ -1165,7 +1188,7 @@ export function saveQuarterly(d, actor, a) {
 
 // ---------------------------------------------------------------- Packages, payments and billing
 export function payPackage(d, actor, { ownerId, packageId, method, outcome, reference }) {
-  if (!ownsBusiness(actor, ownerId)) fail("Only the business pays for its own package.");
+  needOwner(actor, ownerId, "Only the business pays for its own package.");
   const pkg = d.packages.business.find((p) => p.id === packageId);
   if (!pkg || !pkg.price) fail("Choose a paid package.");
   if (reference && d.payments.some((p) => p.reference === reference && p.status === "success")) return "duplicate";
@@ -1178,6 +1201,43 @@ export function payPackage(d, actor, { ownerId, packageId, method, outcome, refe
   d.subscriptions.push({ id: uid("SUB"), ownerId, packageId, from, to: addDays(from, days - 1), status: "active" });
   audit(d, actor, "Package paid", ownerId, { after: packageId });
   return "success";
+}
+
+// ---------------------------------------------------------------- Staff sign-ins (Premium, 11 Nov)
+// The owner adds up to 3 staff by name and phone. Each sets their own PIN with a code to their phone, can record
+// and close the day, and sees reports only if the owner allows. Only the owner changes the profile, money accounts,
+// starting position, loans, consent and packages. When Premium ends, staff sign-ins pause; nothing is deleted.
+export const teamOf = (d, businessId) => (d.users || []).filter((u) => u.role === "business" && u.member && u.businessId === businessId && u.active !== false);
+export function addMember(d, actor, businessId, { name, phone, reports = false }) {
+  needOwner(actor, businessId, "Only the business owner adds staff.");
+  const b = findBusiness(d, businessId);
+  if (!hasFeature(d, b, "team", today(d))) fail("Staff sign-ins are part of Premium.");
+  if (teamOf(d, businessId).length >= TEAM_MAX) fail(`You can have up to ${TEAM_MAX} staff sign-ins. Remove one first.`);
+  const nm = String(name || "").trim().replace(/\s+/g, " ");
+  if (!validName(nm)) fail("Enter the staff member's first and last name, letters only.");
+  if (!validPhone(phone)) fail("Enter a valid Tanzanian mobile number.");
+  const ph = normPhone(phone);
+  if (ownersOf(b.profile).some((o) => normPhone(o.phone) === ph)) fail("This is an owner's phone. Staff use their own phone.");
+  if (d.users.some((u) => u.role === "business" && u.login === ph && u.active !== false)) fail("This phone number is already registered with TijaPass.");
+  const id = uid("U");
+  d.users.push({ id, role: "business", member: true, reports: !!reports, name: nm, login: ph, pin: null, businessId, active: true, failedPins: 0, addedAt: nowISO(d), addedBy: by(actor) });
+  audit(d, actor, "Staff sign-in added", businessId, { after: { name: nm, reports: !!reports } });
+  return id;
+}
+export function updateMember(d, actor, userId, { reports }) {
+  const u = d.users.find((x) => x.id === userId && x.member);
+  if (!u) fail("Staff member not found.");
+  needOwner(actor, u.businessId, "Only the business owner changes staff access.");
+  u.reports = !!reports;
+  audit(d, actor, "Staff access changed", u.businessId, { after: { name: u.name, reports: u.reports } });
+}
+export function removeMember(d, actor, userId) {
+  const u = d.users.find((x) => x.id === userId && x.member);
+  if (!u) fail("Staff member not found.");
+  needOwner(actor, u.businessId, "Only the business owner removes staff.");
+  u.active = false;
+  u.removedAt = nowISO(d);
+  audit(d, actor, "Staff sign-in removed", u.businessId, { before: { name: u.name } });
 }
 
 export function setFiPackage(d, actor, fiId, packageId, billing) {
@@ -1309,6 +1369,15 @@ export function proposeConfig(d, actor, kind, value, reason) {
     if (p.length) fail(`Check the settings: ${p.join("; ")}.`);
   } else {
     for (const pk of [...(value.business || []), ...(value.fi || [])]) for (const k of ["price", "monthly", "perAssessment"]) if (pk[k] !== undefined) nonNegative(pk[k]);
+    // The packages themselves are fixed (their benefits live in the rules); only prices and wording change (11 Nov).
+    const ids = (value.business || []).map((p) => p.id).sort().join();
+    if (value.business && ids !== d.packages.business.map((p) => p.id).sort().join()) fail("Business packages cannot be added or removed here.");
+    for (const pk of value.business || []) {
+      if (pk.id === "basic" && Number(pk.price) !== 0) fail("Basic stays free.");
+      if (pk.id !== "basic" && !(Number(pk.price) > 0)) fail("A paid package needs a price above zero.");
+      maxLen(pk.forEn, 300, "The \"choose this if\" line");
+      maxLen(pk.forSw, 300, "The \"choose this if\" line");
+    }
     for (const k of ["disbursementPct", "collectionPct"]) if (value.fees?.[k] !== undefined && (Number(value.fees[k]) < 0 || Number(value.fees[k]) > 10)) fail("Lender fees must be from 0% to 10%.");
   }
   d.pendingConfig = (d.pendingConfig || []).filter((x) => x.kind !== kind);

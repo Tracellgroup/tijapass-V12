@@ -9,9 +9,10 @@ import { saveQuarterly } from "../../lib/actions.js";
 import { myBusiness } from "../../lib/access.js";
 import { L } from "../../lib/i18n.js";
 import { useAction, useStore } from "../../lib/store.jsx";
-import { AmountInput, Card, Chips, DateRange, Field, Modal, RatingBadge, Stat, fmtDate, fmtDateTime, useRange } from "../../ui/components.jsx";
+import { AmountInput, Card, Chips, DateRange, Field, Modal, RatingBadge, Stat, Tabs, fmtDate, fmtDateTime, useRange } from "../../ui/components.jsx";
 import { ActivityList, EntryLine, RatingHistory, Statements, daysClosed30, myThreads } from "../common.jsx";
 import { EntryForm } from "./Record.jsx";
+import { AnalysisView, LockedCard, TrendView, useBenefits } from "./Benefits.jsx";
 
 export function QuarterlyQuestions({ business, onDone }) {
   const { user } = useStore();
@@ -53,14 +54,15 @@ export default function Home() {
   const held = state.entries.filter((e) => e.businessId === b.id && e.status === "held");
   const toExplain = state.imports.filter((i) => i.businessId === b.id).flatMap((i) => i.pending);
   const r = latestRating(state, b.id);
-  const needAck = r && !r.acknowledgedAt;
-  const qDue = quarterlyDue(state, b);
+  const needAck = !user.member && r && !r.acknowledgedAt;
+  const member = !!user.member;
+  const qDue = !member && quarterlyDue(state, b);
   const recent = state.entries.filter((e) => e.businessId === b.id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt))).slice(0, 5);
   return (
     <div className="stack">
       <section className="hero">
         <p className="eyebrow">{b.profile.businessName}</p>
-        <h1>{L("Hello", "Habari")}, {b.profile.ownerName.split(" ")[0]}</h1>
+        <h1>{L("Hello", "Habari")}, {(member ? user.name : b.profile.ownerName).split(" ")[0]}</h1>
         <p>{L("Record every shilling in and out. Close your day each evening.", "Andika kila shilingi inayoingia na kutoka. Funga siku yako kila jioni.")}</p>
         <div className="inout mt2">
           <button className="btn big primary" onClick={() => go("record", { dir: "in" })}><ArrowDownLeft size={26} />{L("Record money in", "Andika pesa iliyoingia")}</button>
@@ -74,7 +76,7 @@ export default function Home() {
       {!missed.length && due && (
         <div className="notice warn"><b>{L("Close your day?", "Funga siku yako?")}</b>{L(`It is past your closing time (${b.closingTime}). Count your money and close today.`, `Muda wako wa kufunga (${b.closingTime}) umepita. Hesabu pesa zako na ufunge leo.`)}<div className="mt"><button className="btn primary" onClick={() => go("close")}><Moon size={18} />{L("Close my day", "Funga siku yangu")}</button></div></div>
       )}
-      {!b.opening || b.opening.status === "draft" ? (
+      {!member && (!b.opening || b.opening.status === "draft") ? (
         <div className="notice"><b>{L("Set your starting position", "Weka hali yako ya kuanzia")}</b>{L("Tell TijaPass what the business had and owed when it joined.", "Iambie TijaPass biashara ilikuwa na nini na ilidaiwa nini ilipojiunga.")}<div className="mt"><button className="btn" onClick={() => go("profile", { tab: "opening" })}>{L("Set up now", "Weka sasa")}</button></div></div>
       ) : null}
       {(held.length > 0 || toExplain.length > 0) && (
@@ -87,10 +89,10 @@ export default function Home() {
         <Stat label={L("Money in today", "Pesa iliyoingia leo")} value={money(s.totalIn)} note={`${s.countIn} ${L("entries", "miamala")}`} onClick={() => go("activity")} />
         <Stat label={L("Money out today", "Pesa iliyotoka leo")} value={money(s.totalOut)} note={`${s.countOut} ${L("entries", "miamala")}`} onClick={() => go("activity")} />
         <Stat label={L("Today", "Leo")} value={closedToday ? L("Closed", "Imefungwa") : L("Open", "Wazi")} note={`${L("Days closed", "Siku zilizofungwa")}: ${dc.closed}/${dc.days}`} onClick={() => go("close")} />
-        <Stat label={L("Credit passport", "Pasipoti ya mkopo")} value={`${sc.value}/100`} note={L("Indicative score", "Alama ya makadirio")} onClick={() => go("finance")} />
+        {!member && <Stat label={L("Credit passport", "Pasipoti ya mkopo")} value={`${sc.value}/100`} note={L("Indicative score", "Alama ya makadirio")} onClick={() => go("finance")} />}
       </div>
       <div className="grid g2">
-        <Card title={L("Records Rating", "Kiwango cha Kumbukumbu")} actions={<button className="btn small" onClick={() => go("rating")}>{L("Details", "Maelezo")} <ChevronRight size={16} /></button>}>
+        <Card title={L("Records Rating", "Kiwango cha Kumbukumbu")} actions={!member && <button className="btn small" onClick={() => go("rating")}>{L("Details", "Maelezo")} <ChevronRight size={16} /></button>}>
           <RatingBadge business={b} big />
           <p className="small muted mt">{L("Your officer checks your records each month.", "Afisa wako hukagua kumbukumbu zako kila mwezi.")}</p>
         </Card>
@@ -136,9 +138,22 @@ export function Activity() {
   );
 }
 
+// Reports (11 Nov): statements on screen are free; PDF and the 12-month trend come with Day pass and up;
+// the financial analysis with Premium.
 export function Reports() {
-  const { state, user } = useStore();
-  return <Statements business={myBusiness(state, user)} />;
+  const { b, has } = useBenefits();
+  const [tab, setTab] = useState("statements");
+  const [upsell, setUpsell] = useState(false);
+  const lockTag = (f) => (has(f) ? "" : " 🔒");
+  return (
+    <div className="stack">
+      <Tabs value={tab} onChange={setTab} tabs={[{ value: "statements", label: L("Statements", "Taarifa") }, { value: "trend", label: L("12 months", "Miezi 12") + lockTag("trend") }, { value: "analysis", label: L("Financial analysis", "Uchambuzi wa fedha") + lockTag("analysis") }]} />
+      {tab === "statements" && <Statements business={b} pdfLocked={!has("pdf")} onLocked={() => setUpsell(true)} />}
+      {tab === "trend" && (has("trend") ? <TrendView business={b} /> : <LockedCard feature="trend" />)}
+      {tab === "analysis" && (has("analysis") ? <AnalysisView business={b} /> : <LockedCard feature="analysis" />)}
+      {upsell && <Modal title={L("Download PDF", "Pakua PDF")} onClose={() => setUpsell(false)}><LockedCard feature="pdf" /></Modal>}
+    </div>
+  );
 }
 
 export function RatingScreen() {

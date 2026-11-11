@@ -1,5 +1,5 @@
 // Pieces shared by several user types: statements, passport, rating detail, loan tracker, message threads.
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CheckCircle2, Printer, Send, XCircle } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, CheckCircle2, Lock, Printer, Send, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CASHFLOW_LINES, balanceSheet, cashFlowDirect, incomeStatement } from "../core/accounting.js";
 import { activePackage } from "../core/billing.js";
@@ -64,7 +64,7 @@ export const holdText = (code) => tl({
 // ------------------------------------------------------------------ Statements (REP-01 to REP-03)
 const label = (acc, business) => (acc.startsWith("ch:") ? business.channels.find((c) => `ch:${c.id}` === acc)?.name : acc === "retained" ? L("Profit kept in the business", "Faida iliyobaki kwenye biashara") : tl(ACCOUNTS[acc]));
 
-export function Statements({ business, initial = "is", hideTabs = false, minDate = null }) {
+export function Statements({ business, initial = "is", hideTabs = false, minDate = null, pdfLocked = false, onLocked = null }) {
   const { state } = useStore();
   const [tab, setTab] = useState(initial);
   const [rawRange, setRange] = useRange("month");
@@ -77,13 +77,13 @@ export function Statements({ business, initial = "is", hideTabs = false, minDate
     <div className="stack">
       {!hideTabs && <Tabs value={tab} onChange={setTab} tabs={["is", "bs", "cf"].map((v) => ({ value: v, label: titles[v] }))} />}
       <DateRange value={rawRange} onChange={setRange} />
-      <Card className="stmt">
+      <Card className={`stmt ${pdfLocked ? "locked-print" : ""}`}>
         <div className="between">
           <div>
             <h2>{titles[tab]}</h2>
             <p className="small muted">{business.profile.businessName} · {tab === "bs" ? `${L("as at", "hadi")} ${fmtDate(range.to)}` : `${fmtDate(range.from)} – ${fmtDate(range.to)}`}</p>
           </div>
-          <button className="btn no-print" onClick={() => window.print()}><Printer size={18} />{L("Download PDF", "Pakua PDF")}</button>
+          <button className="btn no-print" onClick={() => (pdfLocked ? onLocked?.() : window.print())}>{pdfLocked ? <Lock size={18} /> : <Printer size={18} />}{L("Download PDF", "Pakua PDF")}</button>
         </div>
         <div className="table-wrap mt">
           {tab === "is" && (
@@ -130,6 +130,7 @@ export function Statements({ business, initial = "is", hideTabs = false, minDate
         </div>
         {tab === "bs" && Math.abs(bs.difference) > 1 && <p className="notice bad mt">{L("Figures do not balance; TijaPass Admin has been told.", "Takwimu hazilingani; TijaPass Admin wamearifiwa.")}</p>}
         <p className="tiny muted mt">{L("Prepared by TijaPass from the business's own records.", "Imeandaliwa na TijaPass kutoka kumbukumbu za biashara yenyewe.")}</p>
+        {pdfLocked && <p className="print-only">{L("Printing statements is part of the paid packages (Day pass and up).", "Kuchapisha taarifa ni sehemu ya vifurushi vya kulipia (Pasi ya siku na kuendelea).")}</p>}
       </Card>
     </div>
   );
